@@ -47,6 +47,7 @@ module.exports = class filenameController {
             'song4295', // 걸갤
             'green6157', // 걸갤
             'parasite0850', // 걸갤
+            'solar5548', // 걸갤, 야갤
             'definite2251', // 엳음갤
             'decided9769', // 엳음갤, 한엳갤
             'vh4zz8yvws18', // 파딱
