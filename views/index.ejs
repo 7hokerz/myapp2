@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <%- include('select-option.ejs') %>
+    <p> galleryId (필수): 
+        <input type="text" id="galleryId">
+    </p>
+    <p> 고닉 (닉네임): 
+        <input type="text" id="nickname" value="ㅇㅇ" <%= mode !== 'nick' ? 'disabled' : '' %>>
+    </p>
+    <p> UID (식별코드): 
+        <input type="text" id="uid" <%= mode !== 'nick' ? 'disabled' : '' %>>
+    </p>
+    <p> pos (URL의 search_pos 값(양수)): 
+        <input type="number" id="pos" step="10000" value="0" <%= mode !== 'nick' ? 'disabled' : '' %>>
+    </p>
+    <p> 검색 횟수: 
+        <input type="number" id="limit" step="1" value="1">
+    </p>
+    <p> 시작 페이지: 
+        <input type="number" id="start-page" step="1" value="1" <%= mode !== 'filename' ? 'disabled' : '' %>>
+    </p>
+    
+    <input type="button" id="save-options" value="현재 설정값 저장">
+    <input type="button" id="stop" value="stop" disabled>
+    
+    <%- include(`${mode}-panel.ejs`) %>
+</body>
+</html>

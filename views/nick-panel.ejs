@@ -1,0 +1,270 @@
+<input type="button" id="search" value="search">
+
+<h2>상태</h2>
+<div id="status">
+    <p> 현재 페이지: 0  </p>
+    <p> 남은 페이지: 0  </p>
+    <p> 현재 위치: 0    </p>
+</div>
+
+<h2>고닉에 해당하는 ID</h2>
+<div id="ids">없음</div>
+<input type="button" id="nick-search" value="갤러리에 대한 전체 고닉 검색">
+<input type="button" id="gallery-search" value="고닉에 대한 갤러리 내역 검색">
+<input type="button" id="delete-garbage" value="불필요한 내역 제거" >
+
+<h2>DB에 저장된 고닉</h2>
+<div id="nick-count">고닉 개수: 0</div>
+<table>
+    <thead>
+        <tr>
+            <th>닉네임</th>
+            <th>식별코드</th>
+            <th>갤러리 명</th>
+            <th>추가된 날짜</th>
+        </tr>
+    </thead>
+    <tbody id="nicks">
+    </tbody>
+</table>
+
+<script>
+    class indexPage {
+    constructor() {
+        this.init();
+        this.addEvents();
+    }
+
+    init() {
+        window.onload = () => {
+            const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
+            if(savedValue) {
+                document.getElementById('galleryId').value = savedValue.GID || '';
+                document.getElementById('nickname').value = savedValue.nickname || '';
+                document.getElementById('uid').value = savedValue.UID || '';
+                document.getElementById('pos').value = savedValue.pos || 0;
+                document.getElementById('limit').value = savedValue.limit || '';
+                document.getElementById('gallery').value = savedValue.galleryType || '';
+            }
+            document.getElementById('mode').value
+        };
+
+        this.idsDiv = document.getElementById('ids');
+        this.statusDiv = document.getElementById('status');
+        this.nicksTbody = document.getElementById('nicks');
+        this.searchBtn = document.getElementById('search');
+        this.stopBtn = document.getElementById('stop');
+        this.mode = document.getElementById('mode');
+        this.searchByNickBtn = document.getElementById('nick-search');
+        this.searchBygalleryBtn = document.getElementById('gallery-search');
+        this.deleteGarbageBtn = document.getElementById('delete-garbage');
+        this.inputStatus(false);
+    }
+
+    addEvents() {
+        document.getElementById('mode').addEventListener('change', () => {
+            location.href = `/?mode=${this.mode.value}`;
+        });
+
+        this.searchBtn.addEventListener('click', () => {
+            this.searchAccountFromSite();
+        });
+
+        document.getElementById('nick-search').addEventListener('click', () => {
+            this.selectNicknameList();
+        });
+
+        document.getElementById('gallery-search').addEventListener('click', () => {
+            this.selectGalleryList();
+        });
+
+        document.getElementById('delete-garbage').addEventListener('click', () => {
+            this.clearDeleted();
+        });
+
+        document.getElementById('save-options').addEventListener('click', () => {
+            this.getValueFromUsers();
+            sessionStorage.setItem('inputs', JSON.stringify({
+                GID: this.GID, 
+                nickname: this.nickname, 
+                UID: this.UID, 
+                pos: this.pos, 
+                limit: this.limit,
+                galleryType: this.galleryType,
+            }));
+        });
+    
+        this.stopBtn.addEventListener('click', () => {
+            this.stopSearch();
+        })
+    }
+
+    inputStatus(v) {
+        this.searchBtn.disabled = v;
+        this.stopBtn.disabled = !v;
+        this.searchByNickBtn.disabled = v;
+        this.searchBygalleryBtn.disabled = v;
+        this.deleteGarbageBtn.disabled = v;
+    }
+
+    getValueFromUsers() {
+        this.GID = document.getElementById('galleryId').value.trim();
+        this.nickname = document.getElementById('nickname').value.trim();
+        this.UID = document.getElementById('uid').value.trim() || null;
+        this.pos = document.getElementById('pos').value.trim() || 0;
+        this.limit = document.getElementById('limit').value.trim() || 1;
+        this.galleryType = document.getElementById('gallery').value;
+    }
+
+    async searchAccountFromSite() {
+        this.getValueFromUsers();
+
+        if(!(this.GID && this.nickname && this.limit < 400)) {
+            alert('유효한 값을 입력하세요.');
+            return;
+        }
+        console.log('게시글의 고닉 조회');
+
+        this.inputStatus(true);
+
+        try {
+            const response = await fetch(`/api/client-input/?mode=${this.mode.value}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    GID: this.GID, 
+                    nickname: this.nickname, 
+                    UID: this.UID, 
+                    pos: this.pos, 
+                    limit: this.limit, 
+                    galleryType: this.galleryType,
+                })
+            });
+
+            if(!response.ok) {
+                alert('서버와의 통신이 원활하지 않음.');
+                return;
+            }
+            
+            const eventSource = new EventSource(`/api/user/collect`);
+            
+            eventSource.addEventListener('status', (event) => {
+                const data = JSON.parse(event.data);
+                this.statusDiv.innerHTML = `
+                <p> 남은 페이지: ${data.restPage}  </p>
+                <p> 현재 위치: ${data.position}     </p>
+                <p> 현재 페이지: ${data.curPage}    </p>`;
+            });
+
+            eventSource.addEventListener('fixed-nick', (event) => { // 고닉 데이터를 테이블에 추가
+                const data = JSON.parse(event.data); 
+                this.idsDiv.innerHTML = data.map(id => `
+                    <span><b><a href='https://gallog.dcinside.com/${id[0]}' target="_blank">${id[0]}</a>(${id[1]})</b></span>
+                `).join('');
+            });
+
+            eventSource.addEventListener('complete', (event) => {
+                eventSource.close();
+                
+                this.statusDiv.innerHTML += `<p> 작업 완료. </p>`;
+                this.inputStatus(false);
+            });
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                
+                this.statusDiv.innerHTML = `<p> 연결 오류 발생. </p>`;
+                this.inputStatus(false);
+            };
+        
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+    
+    async stopSearch() {
+        try {
+            await fetch('/api/user/stop'); // 서버에 중지 요청
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    async selectNicknameList() {
+        this.getValueFromUsers();
+        this.nicksTbody.innerHTML = '';
+        try {
+            const response = await fetch(`/api/nickname-list/?galleryid=${this.GID}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            });
+
+            const payload = await response.json();
+            
+            payload.forEach(id => {
+                this.nicksTbody.innerHTML += `
+                    <tr>
+                        <td><a href ='https://gallog.dcinside.com/${id.identityCode}' target=_blank>${id.identityCode}<a></td>
+                        <td>${id.nickname}</td>
+                        <td>${id.galleryName}</td>
+                        <td>${new Date(id.added_date).toLocaleString('ko-KR')}</td>
+                    </tr>`;
+            });
+        } catch (error) {
+            console.log(error);
+        }
+    }
+    
+    async selectGalleryList() {
+        this.getValueFromUsers();
+        this.nicksTbody.innerHTML = '';
+
+        try {
+            const response = await fetch(`/api/gallery-list?uid=${this.UID}`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const payload = await response.json();
+            
+            payload.forEach(id => {
+                this.nicksTbody.innerHTML += `
+                    <tr>
+                        <td><a href ='https://gallog.dcinside.com/${id.identityCode}' target=_blank>${id.identityCode}<a></td>
+                        <td>${id.nickname}</td>
+                        <td>${id.galleryName}</td>
+                        <td>${new Date(id.added_date).toLocaleString('ko-KR')}</td>
+                    </tr>`;
+            });
+        } catch (error) {
+            console.log(error);
+        }
+    }
+    
+    async clearDeleted() {
+        this.getValueFromUsers();
+        if(!(this.GID)) {
+            alert('필수 칸에 입력이 필요함');
+            return;
+        }
+        this.inputStatus(true);
+
+        try {
+            const response = await fetch(`/api/nickname-list?galleryid=${this.GID}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const payload = await response.json();
+
+        } catch (error) {
+            console.log(error);
+        } finally {
+            this.inputStatus(false);
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    new indexPage();
+});
+</script>

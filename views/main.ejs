@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <%- include('select-option.ejs') %>
+    <p> galleryId (필수): <input type="text" id="galleryId"></p>
+    <p> 고닉 (게시물 검색 시 필수): <input type="text" id="nickname" value="ㅇㅇ"></p>
+    <p> UID (식별코드): <input type="text" id="uid"></p>
+    <p> pos (기본값 0, URL의 search_pos 값(양수), 실제 pos 값을 알아보는 게 좋다.): <input type="text" id="pos" value="0"></p>
+    <p> 검색 횟수 (기본값: 1): <input type="text" id="limit" value="1"></p>
+    
+    <input type="button" id="search" value="search" onclick="getPost()">
+    <input type="button" id="stop" value="stop" onclick="stopSearch()" disabled>
+
+    <h2>상태</h2>
+    <div id="status">
+        <p> 남은 페이지: 0  </p>
+        <p> 현재 위치: 0    </p>
+        <p> 현재 페이지: 0  </p>
+    </div>
+
+    <h2>고닉에 해당하는 ID</h2>
+    <div id="ids">없음</div>
+
+    <%- include('post-type.ejs') %>
+    <script>
+        async function getComment() {
+            const GID = document.getElementById('galleryId').value.trim();
+            const nickname = document.getElementById('nickname').value.trim();
+            const UID = document.getElementById('uid').value.trim() || null;
+            const pos = document.getElementById('pos').value.trim() || 0;
+            const limit = document.getElementById('limit').value.trim() || 1;
+
+            if(!(GID)) {
+                alert('필수 칸에 입력이 필요함');
+                return;
+            }
+
+            console.log('댓글 조회');
+
+            try {
+                let commentCount = 0;
+                const idsDiv = document.getElementById('ids');
+                const statusDiv = document.getElementById('status');
+                const commentsTbody = document.getElementById('comments');
+                const searchBtn = document.getElementById('search');
+                const stopBtn = document.getElementById('stop');
+                const galleryType = document.getElementById('gallery').value;
+
+                document.getElementById('comment-count').innerText = `게시물 개수: 0`;
+                commentsTbody.innerHTML = ""; // 기존 테이블 내용 초기화
+                searchBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                const response = await fetch(`/api/send-data/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        GID, nickname, UID, pos, limit, galleryType,
+                    })
+                });
+
+                if(!response.ok) {
+                    alert('서버와의 통신이 원활하지 않음.');
+                    return;
+                }
+
+                const eventSource = new EventSource(`/api/comments`);
+
+                eventSource.addEventListener('status', (event) => {
+                    const data = JSON.parse(event.data);
+                    statusDiv.innerHTML = 
+                    `<p> 남은 페이지: ${data.restPage}  </p>
+                    <p> 현재 위치: ${data.position}     </p>`;
+                });
+
+                eventSource.addEventListener('comment', (event) => { // 댓글 데이터를 테이블에 추가
+                    const comment = JSON.parse(event.data); 
+                    commentsTbody.innerHTML += `
+                        <tr>
+                            <td><a href='https://gall.dcinside.com/${galleryType}board/view/?id=${GID}&no=${comment.postNum}' target="_blank">${comment.postNum}</a></td>
+                            <td>${comment.author}</td>
+                            <td>${comment.content}</td>
+                            <td>${comment.date}</td>
+                        </tr>`;
+                    document.getElementById('comment-count').innerText = `댓글 개수: ${++commentCount}`;
+                });
+
+                eventSource.addEventListener('complete', (event) => {
+                    const data = JSON.parse(event.data);
+                    idsDiv.innerHTML = data.map(id => `
+                        <span><b><a href='https://gallog.dcinside.com/${id}' target="_blank">${id}</a></b></span>
+                    `).join('');
+                    
+                    eventSource.close();
+                    
+                    statusDiv.innerHTML += `<p> 작업 완료. </p>`;
+                    searchBtn.disabled = false;
+                    stopBtn.disabled = true;
+                });
+
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    
+                    statusDiv.innerHTML = `<p> 연결 오류 발생. </p>`;
+                    searchBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        async function getPost() {
+            const GID = document.getElementById('galleryId').value.trim();
+            const nickname = document.getElementById('nickname').value.trim();
+            const UID = document.getElementById('uid').value.trim() || null;
+            const pos = document.getElementById('pos').value.trim() || 0;
+            const limit = document.getElementById('limit').value.trim() || 1;
+
+            if(!(GID && nickname)) {
+                alert('필수 칸에 입력이 필요함');
+                return;
+            }
+
+            console.log('게시글 조회');
+            
+            try {
+                let postCount = 0;
+                const idsDiv = document.getElementById('ids');
+                const statusDiv = document.getElementById('status');
+                const postsTbody = document.getElementById('posts');
+                const searchBtn = document.getElementById('search');
+                const stopBtn = document.getElementById('stop');
+                const galleryType = document.getElementById('gallery').value;
+
+                document.getElementById('post-count').innerText = `게시물 개수: 0`;
+                postsTbody.innerHTML = ""; // 기존 테이블 내용 초기화
+                searchBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                const response = await fetch(`/api/send-data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        GID, nickname, UID, pos, limit, galleryType
+                    })
+                });
+                
+                if(!response.ok) {
+                    alert('서버와의 통신이 원활하지 않음.');
+                    return;
+                }
+                
+                const eventSource = new EventSource(`/api/posts`); // SSE 연결
+                
+                eventSource.addEventListener('status', (event) => {
+                    const data = JSON.parse(event.data);
+                    statusDiv.innerHTML = 
+                    `<p> 남은 페이지: ${data.restPage}  </p>
+                    <p> 현재 위치: ${data.position}     </p>
+                    <p> 현재 페이지: ${data.curPage}    </p>`;
+                });
+
+                eventSource.addEventListener('post', (event) => { // 게시물 데이터를 테이블에 추가
+                    const post = JSON.parse(event.data); 
+                    postsTbody.innerHTML += `
+                        <tr>
+                            <td><a href='https://gall.dcinside.com/${galleryType}board/view/?id=${GID}&no=${post.num}' target="_blank">${post.num}</a></td>
+                            <td>${post.title}</td>
+                            <td>${post.date}</td>
+                        </tr>`;
+                    document.getElementById('post-count').innerText = `게시물 개수: ${++postCount}`;
+                });
+
+                eventSource.addEventListener('complete', (event) => {
+                    const data = JSON.parse(event.data);
+                    idsDiv.innerHTML = data.map(id => `
+                        <span><b><a href='https://gallog.dcinside.com/${id[0]}' target="_blank">${id[0]}</a>(${id[1]})</b></span>
+                    `).join('');
+                    
+                    eventSource.close();
+                    
+                    statusDiv.innerHTML += `<p> 작업 완료. </p>`;
+                    searchBtn.disabled = false;
+                    stopBtn.disabled = true;
+                });
+
+                eventSource.onerror = () => {
+                    eventSource.close();
+                    
+                    statusDiv.innerHTML = `<p> 연결 오류 발생. </p>`;
+                    searchBtn.disabled = false;
+                    stopBtn.disabled = true;
+                };
+            
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function stopSearch() {
+            try {
+                await fetch('/api/stop'); // 서버에 중지 요청
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        window.onload = () => {
+            const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
+            if(savedValue) {
+                document.getElementById('galleryId').value = savedValue.GID || '';
+                document.getElementById('nickname').value = savedValue.nickname || '';
+                document.getElementById('uid').value = savedValue.UID || '';
+                document.getElementById('pos').value = savedValue.pos || '';
+                document.getElementById('limit').value = savedValue.limit || '';
+            }
+        };
+    </script>
+</body>
+</html>
