@@ -5,12 +5,12 @@ const configExpress = require('./config/express');
 configExpress(app);
 
 const collectService = require('./services/collectService');
-const SSEController = require('./controller/SSEController');
+const SSEUtil = require('./utils/SSEUtil');
 const collectController = require('./controller/collectController');
 const filenameController = require('./controller/filenameController');
 
 const collectservice = new collectService();
-const SSEcontroller  = new SSEController();
+const SSEutil = new SSEUtil();
 const collectcontroller = new collectController();
 const filenamecontroller = new filenameController();
 
@@ -29,23 +29,23 @@ app.get('/api/user/stop', (req, res) => {
 });
 
 app.get('/api/user/collect', async (req, res) => {
-    SSEcontroller.SSEInitHeader(res);
+    SSEutil.SSEInitHeader(res);
     try {
         while(1) {
             const {idMap, stopFlag, status} = await collectcontroller.getNicknameFromSite();
 
             const data = Array.from(idMap).sort();
 
-            SSEcontroller.SSESendEvent(res, 'fixed-nick', data);
-            SSEcontroller.SSESendEvent(res, 'status', status);
+            SSEutil.SSESendEvent(res, 'fixed-nick', data);
+            SSEutil.SSESendEvent(res, 'status', status);
 
             if(stopFlag) {
                 await collectcontroller.insertToID();
                 break;
             }
         }
-        SSEcontroller.SSESendEvent(res, 'complete', '');
-        SSEcontroller.SSEendEvent(res);
+        SSEutil.SSESendEvent(res, 'complete', '');
+        SSEutil.SSEendEvent(res);
 
         console.log('식별코드 삽입 작업 완료.');
     } catch (error) {
@@ -54,19 +54,19 @@ app.get('/api/user/collect', async (req, res) => {
 });
 
 app.get('/api/post/filename', async (req, res) => {
-    SSEcontroller.SSEInitHeader(res);
+    SSEutil.SSEInitHeader(res);
     try {
         while(1) {
             const { stopFlag, status } = await filenamecontroller.getFilenameFromSite(res);
 
-            SSEcontroller.SSESendEvent(res, 'status', status);
+            SSEutil.SSESendEvent(res, 'status', status);
 
             if(stopFlag) {
                 break;
             }
         }
-        SSEcontroller.SSESendEvent(res, 'complete', '');
-        SSEcontroller.SSEendEvent(res);
+        SSEutil.SSESendEvent(res, 'complete', '');
+        SSEutil.SSEendEvent(res);
 
         console.log('첨부파일 확인 작업 완료.');
     } catch (error) {

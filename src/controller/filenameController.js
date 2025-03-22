@@ -1,13 +1,13 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
-const SSEController = require('../controller/SSEController');
+const SSEUtil = require('../utils/SSEUtil');
 
 module.exports = class filenameController {
 
     constructor() {
         this.stopFlag = true;
         this.fetchUtil = new fetchUtil();
-        this.SSEController  = new SSEController();
+        this.SSEUtil = new SSEUtil();
         this.postNoSet = new Set();
         this.lastChecked = null;
         this.galleryList = [
@@ -107,12 +107,12 @@ module.exports = class filenameController {
             
             if(!filename) {
                 this.postNoSet.add(no); 
-                console.log(`${no}는 다시 검색`);
+                //console.log(`${no}는 다시 검색`);
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             } 
             else {
                 if(this.galleryList.some((e) => filename.includes(e))) {
-                    this.SSEController.SSESendEvent(res, 'post', {
+                    this.SSEUtil.SSESendEvent(res, 'post', {
                         filename: filename,
                         no: no,
                     });
@@ -124,7 +124,7 @@ module.exports = class filenameController {
                 no: no,
             });
 
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 20) + 10)); // 디도스 방지 딜레이
+            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 20) + 20)); // 디도스 방지 딜레이
         }
 
         if(this.restPage <= 1) this.stopFlag = true;
@@ -140,7 +140,7 @@ module.exports = class filenameController {
     }
 
     CheckedPostNo(res, data) {
-        this.SSEController.SSESendEvent(res, 'no', data);
+        this.SSEUtil.SSESendEvent(res, 'no', data);
     }
 
     stopSearch() {
