@@ -15,9 +15,10 @@ const collectcontroller = new collectController();
 const filenamecontroller = new filenameController();
 
 app.get('/', (req, res) => {
-    const { mode } = req.query;
+    const { mode, type } = req.query;
     res.render('index', {
         mode: mode || 'nick',
+        type: mode === 'nick' ? type || 'search_name' : '',
     });
 });
 
@@ -74,9 +75,13 @@ app.get('/api/post/filename', async (req, res) => {
 });
 
 app.post('/api/client-input', async (req, res) => { 
-    const { mode } = req.query;
+    const { mode, type } = req.query;
     if(mode === 'filename') await filenamecontroller.init(req.body);
-    else await collectcontroller.init(req.body);
+    else {
+        if(type === 'search_subject_memo') req.body.nickname = '';
+        if(type === 'search_name') req.body.keyword = '';
+        await collectcontroller.init(req.body);
+    }
     res.json({ status: 'success' });
 });
 

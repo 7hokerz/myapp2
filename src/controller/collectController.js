@@ -14,12 +14,13 @@ module.exports = class collectController {
         this.collectService.idMap = new Map();
         this.collectService.noSet = new Set();
 
-        const { GID: galleryId, nickname, UID: id, pos, limit, galleryType } = data;
+        const { GID: galleryId, nickname, keyword, type, UID: id, pos, limit, galleryType } = data;
         
         this.stopFlag = false;
         this.curPage = 1;
         this.galleryId = galleryId;
-        this.nickname = nickname;
+        this.keyword = nickname || keyword || '';
+        this.type = type;
         this.id = id;
         this.restPage = Number(limit);
         this.galleryType = galleryType;
@@ -40,7 +41,8 @@ module.exports = class collectController {
     }
     
     async getNicknameFromSite() { 
-        const url = `https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=search_name&s_keyword=${this.nickname}`;
+        const url = `
+        https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.keyword}`;
         
         const response = await this.fetchUtil.fetcher(url);
 
@@ -93,4 +95,5 @@ module.exports = class collectController {
         
         return cleanhtml;
     }
+    
 }

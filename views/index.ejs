@@ -25,7 +25,13 @@
         <input type="text" id="galleryId">
     </p>
     <p> 고닉 (닉네임): 
-        <input type="text" id="nickname" value="ㅇㅇ" <%= mode !== 'nick' ? 'disabled' : '' %>>
+        <input type="text" id="nickname" value="ㅇㅇ" 
+            <%= type !== 'search_name' ? 'disabled' : '' %>
+        >
+        키워드 (검색어): 
+        <input type="text" id="keyword" value="릿" 
+            <%= type !== 'search_subject_memo' ? 'disabled' : '' %>
+        >
     </p>
     <p> UID (식별코드): 
         <input type="text" id="uid" <%= mode !== 'nick' ? 'disabled' : '' %>>

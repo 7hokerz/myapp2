@@ -41,6 +41,7 @@
             if(savedValue) {
                 document.getElementById('galleryId').value = savedValue.GID || '';
                 document.getElementById('nickname').value = savedValue.nickname || '';
+                document.getElementById('keyword').value = savedValue.keyword || '';
                 document.getElementById('uid').value = savedValue.UID || '';
                 document.getElementById('pos').value = savedValue.pos || 0;
                 document.getElementById('limit').value = savedValue.limit || '';
@@ -55,6 +56,7 @@
         this.searchBtn = document.getElementById('search');
         this.stopBtn = document.getElementById('stop');
         this.mode = document.getElementById('mode');
+        this.type = document.getElementById('search-type');
         this.searchByNickBtn = document.getElementById('nick-search');
         this.searchBygalleryBtn = document.getElementById('gallery-search');
         this.deleteGarbageBtn = document.getElementById('delete-garbage');
@@ -63,7 +65,19 @@
 
     addEvents() {
         document.getElementById('mode').addEventListener('change', () => {
-            location.href = `/?mode=${this.mode.value}`;
+            const url = new URL(window.location.href);
+            url.searchParams.set('mode', this.mode.value);
+            url.searchParams.set('type', this.type.value);
+            location.href = url.toString();
+        });
+
+        document.getElementById('search-type').addEventListener('change', () => {
+            const url = new URL(window.location.href);
+            
+            url.searchParams.set('mode', this.mode.value);
+            url.searchParams.set('type', this.type.value);
+            console.log(this.mode.value, this.type.value);
+            location.href = url.toString();
         });
 
         this.searchBtn.addEventListener('click', () => {
@@ -87,6 +101,7 @@
             sessionStorage.setItem('inputs', JSON.stringify({
                 GID: this.GID, 
                 nickname: this.nickname, 
+                keyword: this.keyword,
                 UID: this.UID, 
                 pos: this.pos, 
                 limit: this.limit,
@@ -110,6 +125,7 @@
     getValueFromUsers() {
         this.GID = document.getElementById('galleryId').value.trim();
         this.nickname = document.getElementById('nickname').value.trim();
+        this.keyword = document.getElementById('keyword').value.trim();
         this.UID = document.getElementById('uid').value.trim() || null;
         this.pos = document.getElementById('pos').value.trim() || 0;
         this.limit = document.getElementById('limit').value.trim() || 1;
@@ -128,12 +144,14 @@
         this.inputStatus(true);
 
         try {
-            const response = await fetch(`/api/client-input/?mode=${this.mode.value}`, {
+            const response = await fetch(`/api/client-input/?mode=${this.mode.value}&type=${this.type.value}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     GID: this.GID, 
                     nickname: this.nickname, 
+                    keyword: this.keyword,
+                    type: this.type.value,
                     UID: this.UID, 
                     pos: this.pos, 
                     limit: this.limit, 
