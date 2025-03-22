@@ -24,28 +24,35 @@
     <p> galleryId (필수): 
         <input type="text" id="galleryId">
     </p>
-    <p> 고닉 (닉네임): 
-        <input type="text" id="nickname" value="ㅇㅇ" 
-            <%= type !== 'search_name' ? 'disabled' : '' %>
-        >
-        키워드 (검색어): 
-        <input type="text" id="keyword" value="릿" 
-            <%= type !== 'search_subject_memo' ? 'disabled' : '' %>
-        >
-    </p>
-    <p> UID (식별코드): 
-        <input type="text" id="uid" <%= mode !== 'nick' ? 'disabled' : '' %>>
-    </p>
-    <p> pos (URL의 search_pos 값(양수)): 
-        <input type="number" id="pos" step="10000" value="0" <%= mode !== 'nick' ? 'disabled' : '' %>>
-    </p>
+
+    <% if(mode === 'nick') { %>
+        <p> 고닉 (닉네임): 
+            <input type="text" id="nickname" value="ㅇㅇ" 
+                <%= type !== 'search_name' ? 'disabled' : '' %>
+            >
+            키워드 (검색어): 
+            <input type="text" id="keyword" value="릿" 
+                <%= type !== 'search_subject_memo' ? 'disabled' : '' %>
+            >
+        </p>
+        <p> UID (식별코드): 
+            <input type="text" id="uid">
+        </p>
+        <p> pos (URL의 search_pos 값(양수)): 
+            <input type="number" id="pos" step="10000" value="0">
+        </p>
+    <% } %>
+
     <p> 검색 횟수: 
         <input type="number" id="limit" step="1" value="1">
     </p>
-    <p> 시작 페이지: 
-        <input type="number" id="start-page" step="1" value="1" <%= mode !== 'filename' ? 'disabled' : '' %>>
-    </p>
-    
+
+    <% if(mode === 'filename') { %>
+        <p> 시작 페이지: 
+            <input type="number" id="start-page" step="1" value="1">
+        </p>
+    <% } %>
+
     <input type="button" id="save-options" value="현재 설정값 저장">
     <input type="button" id="stop" value="stop" disabled>
     

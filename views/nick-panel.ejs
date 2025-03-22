@@ -65,18 +65,13 @@
 
     addEvents() {
         document.getElementById('mode').addEventListener('change', () => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('mode', this.mode.value);
-            url.searchParams.set('type', this.type.value);
-            location.href = url.toString();
+            location.href = `/?mode=${this.mode.value}`;
         });
 
         document.getElementById('search-type').addEventListener('change', () => {
             const url = new URL(window.location.href);
-            
             url.searchParams.set('mode', this.mode.value);
             url.searchParams.set('type', this.type.value);
-            console.log(this.mode.value, this.type.value);
             location.href = url.toString();
         });
 

@@ -47,7 +47,12 @@ module.exports = class filenameController {
             'song4295', // 걸갤
             'green6157', // 걸갤
             'parasite0850', // 걸갤
+            'thread9135', // 걸갤
+            'together6862', // 걸갤
+            'step3227', // 걸갤
             'solar5548', // 걸갤, 야갤
+            'aada99', // 야갤
+            'ssddo', // 기타 걸그룹갤
             'definite2251', // 엳음갤
             'decided9769', // 엳음갤, 한엳갤
             'vh4zz8yvws18', // 파딱
@@ -107,6 +112,10 @@ module.exports = class filenameController {
             } 
             else {
                 if(this.galleryList.some((e) => filename.includes(e))) {
+                    this.SSEController.SSESendEvent(res, 'post', {
+                        filename: filename,
+                        no: no,
+                    });
                     console.log(filename);
                     console.log(no);
                 }

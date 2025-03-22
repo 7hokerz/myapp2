@@ -42,7 +42,7 @@ module.exports = class fetchUtil {
                         'User-Agent': this.getRandomUA(),
                         'Accept': 'text/html',
                         'Accept-Encoding': 'br, gzip, deflate',
-                        'Referer': 'https://www.google.com/',
+                        'Referer': 'https://www.dcinside.com/',
                         'Connection': 'close',
                         'Cache-Control': 'no-cache',
                         'X-Forwarded-For': `${proxy.ip}`,
