@@ -1,4 +1,4 @@
-const e = require('express');
+const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
 module.exports = class fetchUtil {
@@ -26,16 +26,17 @@ module.exports = class fetchUtil {
         ];
     }
 
-    async fetcher(url) {
+    async fetcher(url, timeout = 1500) {
         for (let attempt = 0; attempt < 6; attempt++) {
             const proxy = this.getRandomProxy();
             const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
             const proxyAgent = new HttpsProxyAgent(proxyUrl);
-            try {
-                const controller = new AbortController();
-                const { signal } = controller;
-                const timeoutid = setTimeout(() => controller.abort(), 1500);
 
+            const controller = new AbortController();
+            const { signal } = controller;
+            const timeoutid = setTimeout(() => controller.abort(), timeout);
+            
+            try {
                 const response = await fetch(url, {
                     agent: proxyAgent,
                     headers: {
@@ -51,11 +52,9 @@ module.exports = class fetchUtil {
                     },
                     signal,
                 });
-                clearTimeout(timeoutid);
                 return response;
             } catch (error) {
-                if (error.name !== 'AbortError') console.log(error);
-
+                if (error.name !== 'AbortError') console.error(error);
                 if(attempt < 6) {
                     if(attempt >= 3) {
                         if(error.response) console.log(`상태 코드: ${error.response.status}`);
@@ -63,8 +62,101 @@ module.exports = class fetchUtil {
                     }
                     continue;
                 }
-
                 throw error;
+            } finally {
+                if (proxyAgent) {
+                    proxyAgent.destroy();
+                }
+                clearTimeout(timeoutid);
+            }
+        }
+        throw new Error('프록시 서버에 문제가 있습니다.');
+    }
+
+    async axiosFetcher(url, timeout = 1500) {
+        /*const maxRetries = 5;
+        const instance = axios.create({
+            timeout,
+            headers: {
+                'Accept': 'text/html',
+                'Accept-Encoding': 'br, gzip, deflate',
+                'Referer': 'https://www.dcinside.com/',
+                'Connection': 'close',
+                'Cache-Control': 'no-cache',
+                'Via': '1.1 google',
+            },
+        });
+
+        instance.interceptors.request.use((config) => {
+            const proxy = this.getRandomProxy();
+            const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
+            const proxyAgent = new HttpsProxyAgent(proxyUrl);
+            config.httpAgent = proxyAgent;
+            config.httpsAgent = proxyAgent;
+            config.headers['User-Agent'] = this.getRandomUA();
+            config.headers['X-Forwarded-For'] = proxy.ip;
+            config.headers['Forwarded'] = `for=${proxy.ip}`;
+            // 응답 후 프록시 에이전트를 소멸하기 위해 config에 저장
+            config.metadata = { proxyAgent };
+            // 재시도 횟수 초기화
+            config.__retryCount = config.__retryCount || 0;
+            return config;
+        });
+
+        instance.interceptors.response.use(
+            (response) => {
+                if (response.config.metadata && response.config.metadata.proxyAgent) {
+                    response.config.metadata.proxyAgent.destroy();
+                }
+                return response;
+            }, (error) => {
+                const config = error.config;
+                if (config.metadata && config.metadata.proxyAgent) {
+                    config.metadata.proxyAgent.destroy();
+                }
+                if (error.name !== 'ECONNABORTED') console.error(error);
+                if (config.__retryCount < maxRetries) {
+                    config.__retryCount++;
+                    if (error.response) console.log(`상태 코드: ${error.response.status}`);
+                    console.log(`${config.__retryCount + 1}번째 시도 실패. 다시 시도합니다.`);
+                    return instance.request(config);
+                }
+                return Promise.reject(new Error('프록시 서버에 문제가 있습니다.'));
+            }
+        );*/
+
+        //return instance.get(url);
+
+        for (let attempt = 0; attempt < 6; attempt++) {
+            const proxy = this.getRandomProxy();
+            const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
+            const proxyAgent = new HttpsProxyAgent(proxyUrl);
+
+            try {
+                const response = await axios.get(url, {
+                    agent: proxyAgent,
+                    headers: {
+                        'User-Agent': this.getRandomUA(),
+                        'Accept': 'text/html',
+                        'Accept-Encoding': 'br, gzip, deflate',
+                        'Referer': 'https://www.dcinside.com/',
+                        'Connection': 'close',
+                        'Cache-Control': 'no-cache',
+                        'X-Forwarded-For': `${proxy.ip}`,
+                        'Forwarded': `for=${proxy.ip}`,
+                        'Via': '1.1 google',
+                    },
+                    timeout,
+                });
+                return response;
+            } catch (error) {
+                if (error.code !== 'ECONNABORTED') console.log(error.message);
+                if (attempt >= 3) {
+                    if(error.response) console.log(`상태 코드: ${error.response.status}`);
+                    console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
+                }
+            } finally {
+                proxyAgent.destroy();
             }
         }
         throw new Error('프록시 서버에 문제가 있습니다.');
@@ -80,3 +172,8 @@ module.exports = class fetchUtil {
 }
 
 
+/*
+
+
+
+ */

@@ -33,6 +33,7 @@ module.exports = class filenameController {
             'among0425', // 직갤
             'regret7265', // 직갤
             'welcome6013', // 직갤
+            'symptom0855', // 직갤
             'guardian2789', // 탈, 직갤
             'open5441', // 탈, 직갤
             'dlstod0302', // 탈
@@ -52,6 +53,7 @@ module.exports = class filenameController {
             'step3227', // 걸갤
             'solar5548', // 걸갤, 야갤
             'aada99', // 야갤
+            '1212asasqwqw', // 야갤
             'ssddo', // 기타 걸그룹갤
             'definite2251', // 엳음갤
             'decided9769', // 엳음갤, 한엳갤
@@ -77,9 +79,9 @@ module.exports = class filenameController {
     async getFilenameFromSite(res) {
         const url = `
         https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
-        const response = await this.fetchUtil.fetcher(url);
+        const response = await this.fetchUtil.axiosFetcher(url);
         
-        const html = await response.text();
+        const html = response.data;
         const $ = cheerio.load(html);
         
         $('.gall_list .ub-content.us-post').each((index, element) => {
@@ -99,15 +101,14 @@ module.exports = class filenameController {
         for(let no of this.postNoSet) {
             const url = `
             https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
-            const response = await this.fetchUtil.fetcher(url);
-            const html = await response.text();
+            const response = await this.fetchUtil.axiosFetcher(url);
+            const html = response.data;
             const $ = cheerio.load(html);
             
             const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
             
             if(!filename) {
                 this.postNoSet.add(no); 
-                //console.log(`${no}는 다시 검색`);
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             } 
             else {
@@ -116,15 +117,14 @@ module.exports = class filenameController {
                         filename: filename,
                         no: no,
                     });
-                    console.log(filename);
-                    console.log(no);
+                    console.log(filename, no);
                 }
             }
             this.CheckedPostNo(res, {
                 no: no,
             });
 
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 20) + 20)); // 디도스 방지 딜레이
+            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 20) + 30)); // 디도스 방지 딜레이
         }
 
         if(this.restPage <= 1) this.stopFlag = true;
