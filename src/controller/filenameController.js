@@ -80,7 +80,6 @@ module.exports = class filenameController {
         const url = `
         https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
         const response = await this.fetchUtil.axiosFetcher(url);
-        
         const html = response.data;
         const $ = cheerio.load(html);
         
