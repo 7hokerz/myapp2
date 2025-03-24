@@ -123,7 +123,7 @@ module.exports = class fetchUtil {
                 const response = await axiosInstance.get(url);
                 return response;
             } catch (error) {
-                if (error.code !== 'ECONNABORTED') console.log(error.message, url);
+                if (error.code !== 'ECONNABORTED') console.log(error.message);
                 await new Promise(resolve => setTimeout((resolve), 20 * 2 ** attempt)); // 지수 백오프
             }
         }

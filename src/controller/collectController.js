@@ -1,4 +1,4 @@
-const cheerio = require('cheerio');
+
 const collectService = require('../services/collectService');
 const fetchUtil = require('../utils/fetchUtil');
 const SSEUtil = require('../utils/SSEUtil');
@@ -7,14 +7,12 @@ module.exports = class collectController {
     
     constructor() {
         this.stopFlag = true;
+        this.SSEUtil = new SSEUtil();
         this.fetchUtil = new fetchUtil();
         this.collectService = new collectService();
     }
 
     async init(data) {
-        this.collectService.idMap = new Map();
-        this.collectService.noSet = new Set();
-
         const { GID: galleryId, nickname, keyword, type, UID: id, pos, limit, galleryType } = data;
         
         this.stopFlag = false;
@@ -41,18 +39,19 @@ module.exports = class collectController {
         return result;
     }
     
-    async getNicknameFromSite(res) { 
-        SSEUtil.SSEInitHeader(res);
+    async getNicknameFromSite(req, res) { 
+        this.SSEUtil.init(req, res);
+        this.SSEUtil.SSEInitHeader(res);
 
         while(!(this.stopFlag)) {
             const url = `
             https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.keyword}`;
             
             const response = await this.fetchUtil.axiosFetcher(url);
-
-            const resurl = new URL(response.config.url);
+            
+            const resurl = new URL(response.request.res.responseUrl);
             const urlPage = Number(resurl.searchParams.get('page'));
-
+            
             const html = response.data;
             const cleanhtml = this.parseHtml(html);
             
@@ -62,22 +61,21 @@ module.exports = class collectController {
 
             this.updateStatus(statBit);
 
-            SSEUtil.SSESendEvent(res, 'fixed-nick', data);
-            SSEUtil.SSESendEvent(res, 'status', {
+            this.SSEUtil.SSESendEvent('fixed-nick', data);
+            this.SSEUtil.SSESendEvent('status', {
                 restPage: this.restPage, 
                 curPage: this.curPage - 1,
                 position: this.position
             });
         }
 
-        SSEUtil.SSESendEvent(res, 'complete', '');
-        SSEUtil.SSEendEvent(res);
-
-        console.log('식별코드 삽입 작업 완료.');
+        this.SSEUtil.SSESendEvent('complete', '');
+        this.SSEUtil.SSEendEvent();
     }
 
     async insertToID() {
-        await this.collectService.insertToID(this.galleryId);
+        //await this.collectService.insertToID(this.galleryId);
+        console.log('식별코드 삽입 작업 완료.');
     }
 
     stopSearch() {

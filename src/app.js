@@ -5,12 +5,10 @@ const configExpress = require('./config/express');
 configExpress(app);
 
 const collectService = require('./services/collectService');
-const SSEUtil = require('./utils/SSEUtil');
 const collectController = require('./controller/collectController');
 const filenameController = require('./controller/filenameController');
 
 const collectservice = new collectService();
-const SSEutil = new SSEUtil();
 const collectcontroller = new collectController();
 const filenamecontroller = new filenameController();
 
@@ -30,7 +28,7 @@ app.get('/api/user/stop', (req, res) => {
 
 app.get('/api/user/collect', async (req, res) => {
     try {
-        await collectcontroller.getNicknameFromSite(res);
+        await collectcontroller.getNicknameFromSite(req, res);
         await collectcontroller.insertToID();
     } catch (error) {
         console.log(error);
@@ -38,6 +36,7 @@ app.get('/api/user/collect', async (req, res) => {
 });
 
 app.get('/api/post/filename', async (req, res) => {
+
     try {
         await filenamecontroller.getFilenameFromSite(req, res);
     } catch (error) {

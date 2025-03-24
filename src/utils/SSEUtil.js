@@ -1,18 +1,23 @@
 
 module.exports = class SSEController {
 
-    static SSEInitHeader(response) {
-        response.setHeader('Content-Type', 'text/event-stream');
-        response.setHeader('Cache-Control', 'no-cache');
-        response.setHeader('Connection', 'keep-alive');
+    init(request, response) {
+        this.response = response;
+        this.request = request;
     }
 
-    static SSESendEvent(response, event, data) {
-        response.write(`event: ${event}\n`);
-        response.write(`data: ${JSON.stringify(data)}\n\n`)
+    SSEInitHeader() {
+        this.response.setHeader('Content-Type', 'text/event-stream');
+        this.response.setHeader('Cache-Control', 'no-cache');
+        this.response.setHeader('Connection', 'keep-alive');
     }
 
-    static SSEendEvent(response) {
-        response.end();
+    SSESendEvent(event, data) {
+        this.response.write(`event: ${event}\n`);
+        this.response.write(`data: ${JSON.stringify(data)}\n\n`)
+    }
+
+    SSEendEvent() {
+        this.response.end();
     }
 }

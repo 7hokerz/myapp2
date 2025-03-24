@@ -10,6 +10,9 @@ module.exports = class collectService {
     }
 
     async getTotalPost(html) {
+        this.idMap = new Map();
+        this.noSet = new Set();
+
         const $ = cheerio.load(html);
         let result = null;
         $('.gall_list .ub-content.us-post').each((index, element) => {
