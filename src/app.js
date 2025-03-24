@@ -77,7 +77,7 @@ app.get('/api/post/filename', async (req, res) => {
 app.post('/api/client-input', async (req, res) => { 
     const { mode, type } = req.query;
     if(mode === 'filename') await filenamecontroller.init(req.body);
-    else {
+    if(mode === 'nick') {
         if(type === 'search_subject_memo') req.body.nickname = '';
         if(type === 'search_name') req.body.keyword = '';
         await collectcontroller.init(req.body);

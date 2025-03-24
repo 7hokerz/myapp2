@@ -108,17 +108,17 @@ module.exports = class filenameController {
             
             if(!filename) {
                 this.postNoSet.add(no); 
-                await new Promise(resolve => setTimeout(resolve, 100)); 
+                continue;
             } 
-            else {
-                if(this.galleryList.some((e) => filename.includes(e))) {
-                    this.SSEUtil.SSESendEvent(res, 'post', {
-                        filename: filename,
-                        no: no,
-                    });
-                    console.log(filename, no);
-                }
+            
+            if(this.galleryList.some((e) => filename.includes(e))) {
+                this.SSEUtil.SSESendEvent(res, 'post', {
+                    filename: filename,
+                    no: no,
+                });
+                console.log(filename, no);
             }
+            
             this.CheckedPostNo(res, {
                 no: no,
             });

@@ -75,11 +75,23 @@ module.exports = class fetchUtil {
         const axiosInstance = axios.create({
             timeout,
             headers: {
-                'Accept': 'text/html',
-                'Accept-Encoding': 'br, gzip, deflate',
-                'Referer': 'https://www.dcinside.com/',
-                'Connection': 'close',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Accept-Language': 'ko-KR,ko;q=0.9',
                 'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Cookie': 'used_darkmode=1; darkmode=1; alarm_popup=1; ck_img_view_cnt=4;',
+                'Host': 'gall.dcinside.com',
+                'Pragma': 'no-cache',
+                'Referer': 'https://www.dcinside.com/',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'origin',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': 'Windows',
             }
         });
 
@@ -106,16 +118,16 @@ module.exports = class fetchUtil {
             }
         );
 
-        for (let attempt = 0; attempt <= 5; attempt++) {
+        for (let attempt = 1; attempt <= 5; attempt++) {
             try {
                 const response = await axiosInstance.get(url);
                 return response;
             } catch (error) {
                 if (error.code !== 'ECONNABORTED') console.log(error.message);
                 if (attempt >= 3) {
-                    if(error.response) console.log(`상태 코드: ${error.response.status}`);
                     console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
                 }
+                await new Promise(resolve => setTimeout((resolve), 10 * 2 ** attempt)); // 지수 백오프
             }
         }
         throw new Error('프록시 서버에 문제가 있습니다.');

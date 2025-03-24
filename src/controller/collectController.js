@@ -31,9 +31,9 @@ module.exports = class collectController {
 
     async getTotalPost() {   
         const url = `https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}`;
-        const response = await this.fetchUtil.fetcher(url);
+        const response = await this.fetchUtil.axiosFetcher(url);
         
-        const html = await response.text();
+        const html = response.data;
         const cleanhtml = this.parseHtml(html);
 
         const result = await this.collectService.getTotalPost(cleanhtml);
@@ -44,12 +44,12 @@ module.exports = class collectController {
         const url = `
         https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.keyword}`;
         
-        const response = await this.fetchUtil.fetcher(url);
+        const response = await this.fetchUtil.axiosFetcher(url);
 
-        const resurl = new URL(response.url);
+        const resurl = new URL(response.config.url);
         const urlPage = Number(resurl.searchParams.get('page'));
 
-        const html = await response.text();
+        const html = response.data;
         const cleanhtml = this.parseHtml(html);
         
         const { idMap, statBit } = await this.collectService.getNicknameFromSite(cleanhtml, urlPage, this.curPage);
