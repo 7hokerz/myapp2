@@ -7,7 +7,6 @@ module.exports = class filenameController {
     constructor() {
         this.stopFlag = true;
         this.fetchUtil = new fetchUtil();
-        this.SSEUtil = new SSEUtil();
         this.postNoSet = new Set();
         this.lastChecked = null;
         this.galleryList = [
@@ -76,28 +75,93 @@ module.exports = class filenameController {
         this.curPage = 1;
     }
 
-    async getFilenameFromSite(res) {
-        const url = `
-        https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
-        const response = await this.fetchUtil.axiosFetcher(url);
-        const html = response.data;
-        const $ = cheerio.load(html);
-        
-        $('.gall_list .ub-content.us-post').each((index, element) => {
-            const type = $(element).attr('data-type');
-            const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
+    async getFilenameFromSite(req, res) {
+        SSEUtil.SSEInitHeader(res);
 
-            if(
-                (type === 'icon_pic' || type === 'icon_recomimg') && 
-                uid && 
-                !( this.excludeList.some((e) => uid.includes(e)) )
-            ) {
-                const no = $(element).attr('data-no');
-                this.postNoSet.add(no);
+        while(!(this.stopFlag)) {
+            const url = `
+            https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
+            const response = await this.fetchUtil.axiosFetcher(url);
+            const html = response.data;
+            const $ = cheerio.load(html);
+            
+            $('.gall_list .ub-content.us-post').each((index, element) => {
+                const type = $(element).attr('data-type');
+                const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
+
+                if(
+                    (type === 'icon_pic' || type === 'icon_recomimg') && 
+                    uid && 
+                    !( this.excludeList.some((e) => uid.includes(e)) )
+                ) {
+                    const no = $(element).attr('data-no');
+                    this.postNoSet.add(no);
+                }
+            });
+            const postNoArr = Array.from(this.postNoSet);
+
+            for ( // 랜덤 병렬 요청
+                let i = 0, batch = 1; 
+                i < postNoArr.length; 
+                i += batch, batch = Math.floor(Math.random() * 3) + 1
+            ) { 
+                const slicedArr = postNoArr.slice(i, i + batch); 
+                const results = await Promise.allSettled(
+                    slicedArr.map((no) => {
+                        const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
+                        return this.fetchUtil.axiosFetcher(url);
+                    })
+                );
+
+                results.forEach((response, index) => {
+                    const no = postNoArr[i + index];
+
+                    if (response.status === "fulfilled") {
+                        const html = response.value.data;
+                        const $ = cheerio.load(html);
+                        const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
+                        
+                        if(!filename) {
+                            postNoArr.push(no);
+                        } else {
+                            if(this.galleryList.some((e) => filename.includes(e))) {
+                                SSEUtil.SSESendEvent(res, 'post', {
+                                    filename: filename,
+                                    no: no,
+                                });
+                                console.log(filename, no);
+                            }
+                        }
+                        SSEUtil.SSESendEvent(res, 'no', { no: no, });
+                    } else {
+                        postNoArr.push(no);
+                        console.log(response.reason, no);
+                    }
+                });
+                await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 100) + 100)); // 디도스 방지 딜레이 
             }
-        });
+            if(this.restPage <= 1) this.stopFlag = true;
+            this.postNoSet = new Set();
 
-        for(let no of this.postNoSet) {
+            SSEUtil.SSESendEvent(res, 'status', {
+                restPage: --this.restPage, 
+                curPage: ++this.startPage,
+            });
+        }
+
+        SSEUtil.SSESendEvent(res, 'complete', '');
+        SSEUtil.SSEendEvent(res);
+
+        console.log('첨부파일 확인 작업 완료.');
+    }
+
+    stopSearch() {
+        this.stopFlag = true;
+        console.log("작업 중지 요청됨. 대기중...");
+    }
+}
+
+/*for(let no of this.postNoSet) {
             const url = `
             https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
             const response = await this.fetchUtil.axiosFetcher(url);
@@ -124,26 +188,4 @@ module.exports = class filenameController {
             });
 
             await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 20) + 30)); // 디도스 방지 딜레이
-        }
-
-        if(this.restPage <= 1) this.stopFlag = true;
-        this.postNoSet = new Set();
-
-        return {
-            stopFlag: this.stopFlag,
-            status: {
-                restPage: --this.restPage, 
-                curPage: ++this.startPage,
-            }
-        }
-    }
-
-    CheckedPostNo(res, data) {
-        this.SSEUtil.SSESendEvent(res, 'no', data);
-    }
-
-    stopSearch() {
-        this.stopFlag = true;
-        console.log("작업 중지 요청됨. 대기중...");
-    }
-}
+        }*/

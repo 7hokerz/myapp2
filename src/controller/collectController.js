@@ -1,6 +1,7 @@
 const cheerio = require('cheerio');
 const collectService = require('../services/collectService');
 const fetchUtil = require('../utils/fetchUtil');
+const SSEUtil = require('../utils/SSEUtil');
 
 module.exports = class collectController {
     
@@ -40,31 +41,39 @@ module.exports = class collectController {
         return result;
     }
     
-    async getNicknameFromSite() { 
-        const url = `
-        https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.keyword}`;
-        
-        const response = await this.fetchUtil.axiosFetcher(url);
+    async getNicknameFromSite(res) { 
+        SSEUtil.SSEInitHeader(res);
 
-        const resurl = new URL(response.config.url);
-        const urlPage = Number(resurl.searchParams.get('page'));
+        while(!(this.stopFlag)) {
+            const url = `
+            https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.keyword}`;
+            
+            const response = await this.fetchUtil.axiosFetcher(url);
 
-        const html = response.data;
-        const cleanhtml = this.parseHtml(html);
-        
-        const { idMap, statBit } = await this.collectService.getNicknameFromSite(cleanhtml, urlPage, this.curPage);
-        
-        this.updateStatus(statBit);
+            const resurl = new URL(response.config.url);
+            const urlPage = Number(resurl.searchParams.get('page'));
 
-        return {
-            idMap: idMap,
-            stopFlag: this.stopFlag,
-            status: {
+            const html = response.data;
+            const cleanhtml = this.parseHtml(html);
+            
+            const { idMap, statBit } = await this.collectService.getNicknameFromSite(cleanhtml, urlPage, this.curPage);
+            
+            const data = Array.from(idMap).sort();
+
+            this.updateStatus(statBit);
+
+            SSEUtil.SSESendEvent(res, 'fixed-nick', data);
+            SSEUtil.SSESendEvent(res, 'status', {
                 restPage: this.restPage, 
                 curPage: this.curPage - 1,
                 position: this.position
-            }
+            });
         }
+
+        SSEUtil.SSESendEvent(res, 'complete', '');
+        SSEUtil.SSEendEvent(res);
+
+        console.log('식별코드 삽입 작업 완료.');
     }
 
     async insertToID() {

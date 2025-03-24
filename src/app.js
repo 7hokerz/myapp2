@@ -29,46 +29,17 @@ app.get('/api/user/stop', (req, res) => {
 });
 
 app.get('/api/user/collect', async (req, res) => {
-    SSEutil.SSEInitHeader(res);
     try {
-        while(1) {
-            const {idMap, stopFlag, status} = await collectcontroller.getNicknameFromSite();
-
-            const data = Array.from(idMap).sort();
-
-            SSEutil.SSESendEvent(res, 'fixed-nick', data);
-            SSEutil.SSESendEvent(res, 'status', status);
-
-            if(stopFlag) {
-                await collectcontroller.insertToID();
-                break;
-            }
-        }
-        SSEutil.SSESendEvent(res, 'complete', '');
-        SSEutil.SSEendEvent(res);
-
-        console.log('식별코드 삽입 작업 완료.');
+        await collectcontroller.getNicknameFromSite(res);
+        await collectcontroller.insertToID();
     } catch (error) {
         console.log(error);
     }
 });
 
 app.get('/api/post/filename', async (req, res) => {
-    SSEutil.SSEInitHeader(res);
     try {
-        while(1) {
-            const { stopFlag, status } = await filenamecontroller.getFilenameFromSite(res);
-
-            SSEutil.SSESendEvent(res, 'status', status);
-
-            if(stopFlag) {
-                break;
-            }
-        }
-        SSEutil.SSESendEvent(res, 'complete', '');
-        SSEutil.SSEendEvent(res);
-
-        console.log('첨부파일 확인 작업 완료.');
+        await filenamecontroller.getFilenameFromSite(req, res);
     } catch (error) {
         console.log(error);
     }

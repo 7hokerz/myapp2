@@ -24,7 +24,7 @@ module.exports = class fetchUtil {
         ];
     }
 
-    async fetcher(url, timeout = 1500) {
+    async fetcher(url, timeout = 2000) {
         for (let attempt = 0; attempt < 6; attempt++) {
             const proxy = this.getRandomProxy();
             const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
@@ -71,7 +71,7 @@ module.exports = class fetchUtil {
         throw new Error('프록시 서버에 문제가 있습니다.');
     }
 
-    async axiosFetcher(url, timeout = 1500) {
+    async axiosFetcher(url, timeout = 2000) {
         const axiosInstance = axios.create({
             timeout,
             headers: {
@@ -123,11 +123,8 @@ module.exports = class fetchUtil {
                 const response = await axiosInstance.get(url);
                 return response;
             } catch (error) {
-                if (error.code !== 'ECONNABORTED') console.log(error.message);
-                if (attempt >= 3) {
-                    console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
-                }
-                await new Promise(resolve => setTimeout((resolve), 10 * 2 ** attempt)); // 지수 백오프
+                if (error.code !== 'ECONNABORTED') console.log(error.message, url);
+                await new Promise(resolve => setTimeout((resolve), 20 * 2 ** attempt)); // 지수 백오프
             }
         }
         throw new Error('프록시 서버에 문제가 있습니다.');
