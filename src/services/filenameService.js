@@ -73,7 +73,7 @@ module.exports = class filenameService {
         this.postNoSet = new Set();
         this.restPage--;
         this.startPage++;
-
+        
         return {
             status: {
                 restPage: this.restPage,
@@ -88,11 +88,10 @@ module.exports = class filenameService {
         const response = await this.fetchUtil.axiosFetcher(url);
         const html = response.data;
         const $ = cheerio.load(html);
-
+        
         $('.gall_list .ub-content.us-post').each((index, element) => {
             const type = $(element).attr('data-type');
             const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
-
             if(
                 (type === 'icon_pic' || type === 'icon_recomimg') && 
                 uid && 
@@ -108,15 +107,15 @@ module.exports = class filenameService {
         const postNoArr = Array.from(this.postNoSet);
 
         for ( // 랜덤 병렬 요청
-            let i = 0, batch = 1; 
+            let i = 0, batch = Math.floor(Math.random() * 5) + 3; 
             i < postNoArr.length; 
-            i += batch, batch = Math.floor(Math.random() * 3) + 1
+            i += batch, batch = Math.floor(Math.random() * 5) + 3
         ) { 
             const slicedArr = postNoArr.slice(i, i + batch); 
             const results = await Promise.allSettled(
                 slicedArr.map((no) => {
                     const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
-                    return this.fetchUtil.axiosFetcher(url);
+                    return this.fetchUtil.axiosFetcher(url, 1000);
                 })
             );
 
@@ -145,7 +144,7 @@ module.exports = class filenameService {
                     console.log(response.reason, no);
                 }
             });
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 100) + 100)); // 디도스 방지 딜레이 
+            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 150) + 100)); // 디도스 방지 딜레이 
         }
     }
 }

@@ -55,6 +55,8 @@ module.exports = class identityController {
         this.SSEUtil.SSESendEvent('complete', '');
         this.SSEUtil.SSEendEvent();
 
+        await this.identityService.insertToID();
+
         console.log('식별코드 삽입 작업 완료.');
     }
 
