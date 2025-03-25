@@ -4,39 +4,35 @@ const configExpress = require('./config/express');
 
 configExpress(app);
 
-const collectService = require('./services/collectService');
-const collectController = require('./controller/collectController');
+const identityController = require('./controller/identityController');
 const filenameController = require('./controller/filenameController');
 
-const collectservice = new collectService();
-const collectcontroller = new collectController();
+const identitycontroller = new identityController();
 const filenamecontroller = new filenameController();
 
 app.get('/', (req, res) => {
     const { mode, type } = req.query;
     res.render('index', {
-        mode: mode || 'nick',
-        type: mode === 'nick' ? type || 'search_name' : '',
+        mode: mode || 'identity',
+        type: (mode === 'identity' && type) ? type : 'search_name',
     });
 });
 
 app.get('/api/user/stop', (req, res) => {
-    collectcontroller.stopSearch();
+    identitycontroller.stopSearch();
     filenamecontroller.stopSearch();
     res.json({ message: '검색이 중지되었습니다.' });
 });
 
 app.get('/api/user/collect', async (req, res) => {
     try {
-        await collectcontroller.getNicknameFromSite(req, res);
-        await collectcontroller.insertToID();
+        await identitycontroller.getNicknameFromSite(req, res);
     } catch (error) {
         console.log(error);
     }
 });
 
 app.get('/api/post/filename', async (req, res) => {
-
     try {
         await filenamecontroller.getFilenameFromSite(req, res);
     } catch (error) {
@@ -45,13 +41,18 @@ app.get('/api/post/filename', async (req, res) => {
 });
 
 app.post('/api/client-input', async (req, res) => { 
-    const { mode, type } = req.query;
-    if(mode === 'filename') await filenamecontroller.init(req.body);
-    if(mode === 'nick') {
-        if(type === 'search_subject_memo') req.body.nickname = '';
-        if(type === 'search_name') req.body.keyword = '';
-        await collectcontroller.init(req.body);
+    const { mode } = req.body;
+    switch (mode) {
+        case 'identity':
+            await identitycontroller.init(req, res);
+            break;
+        case 'filename':
+            await filenamecontroller.init(req, res);
+            break;
+        default:
+            break;
     }
+
     res.json({ status: 'success' });
 });
 

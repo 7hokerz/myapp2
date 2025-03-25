@@ -60,6 +60,7 @@ module.exports = class filenameService {
         this.fetchUtil = new fetchUtil();
         this.postNoSet = new Set();
         this.SSEUtil = SSEUtil;
+        
         this.galleryType = galleryType;
         this.galleryId = galleryId;
         this.restPage = Number(limit);
@@ -74,8 +75,10 @@ module.exports = class filenameService {
         this.startPage++;
 
         return {
-            restPage: this.restPage,
-            startPage: this.startPage,
+            status: {
+                restPage: this.restPage,
+                curPage: this.startPage,
+            }
         }
     }
 

@@ -1,0 +1,33 @@
+
+<% if(mode === 'identity') { %>
+    <p> 검색 타입:
+        <select id="search-type">
+            <option value="search_name" 
+                <%= type === 'search_name' ? 'selected' : '' %>
+            >
+                글쓴이
+            </option>
+            <option value="search_subject_memo" 
+                <%= type === 'search_subject_memo' ? 'selected' : '' %>
+            >
+                제목+내용
+            </option>
+        </select>
+    </p>
+
+    <p> 닉네임: 
+        <input type="text" id="nickname" value="ㅇㅇ" 
+            <%= type !== 'search_name' ? 'disabled' : '' %>
+        >
+        키워드 (검색어): 
+        <input type="text" id="keyword" value="릿" 
+            <%= type !== 'search_subject_memo' ? 'disabled' : '' %>
+        >
+    </p>
+    <p> UID (식별코드): 
+        <input type="text" id="uid">
+    </p>
+    <p> pos (URL의 search_pos 값(양수)): 
+        <input type="number" id="pos" step="10000" value="0">
+    </p>
+<% } %>

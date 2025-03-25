@@ -1,18 +1,17 @@
 <p> 모드:
     <select id="mode">
-        <option value="nick" <%= mode === 'nick' ? 'selected' : '' %>>식별코드 수집</option>
-        <option value="filename" <%= mode === 'filename' ? 'selected' : '' %>>게시글 파일명 확인</option>
+        <option value="identity" 
+            <%= (mode === 'identity') ? 'selected' : '' %>
+        >
+            식별코드 수집
+        </option>
+        <option value="filename" 
+            <%= (mode === 'filename') ? 'selected' : '' %>
+        >
+            게시글 파일명 확인
+        </option>
     </select>
 </p>
-
-<% if(mode === 'nick') { %>
-    <p> 검색 타입:
-        <select id="search-type">
-            <option value="search_name" <%= type === 'search_name' ? 'selected' : '' %>>글쓴이</option>
-            <option value="search_subject_memo" <%= type === 'search_subject_memo' ? 'selected' : '' %>>제목+내용</option>
-        </select>
-    </p>
-<% } %>
 
 <p> 갤러리 종류: 
     <select id="gallery">
@@ -20,4 +19,8 @@
         <option value="">갤러리</option>
     </select>
 </p>
+
+
+
+
 
