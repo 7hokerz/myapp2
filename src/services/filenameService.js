@@ -2,6 +2,26 @@ const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
 
 module.exports = class filenameService {
+    headers = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'ko-KR,ko;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Cookie': 'used_darkmode=1; darkmode=1; alarm_popup=1; ck_img_view_cnt=4;',
+        'Host': 'gall.dcinside.com',
+        'Pragma': 'no-cache',
+        'Referer': 'https://www.dcinside.com/',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': 'Windows',
+    };
+
     galleryList = [
         'fancam', 
         'grsgills', 
@@ -85,7 +105,7 @@ module.exports = class filenameService {
     async getPostsFromSite() {
         const url = `
         https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
-        const response = await this.fetchUtil.axiosFetcher(url);
+        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
         const html = response.data;
         const $ = cheerio.load(html);
         
@@ -115,7 +135,7 @@ module.exports = class filenameService {
             const results = await Promise.allSettled(
                 slicedArr.map((no) => {
                     const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
-                    return this.fetchUtil.axiosFetcher(url, 5000);
+                    return this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
                 })
             );
 

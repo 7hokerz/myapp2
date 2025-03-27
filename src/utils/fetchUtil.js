@@ -48,41 +48,22 @@ module.exports = class fetchUtil {
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
     };
-    dcHeaders = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Cookie': 'used_darkmode=1; darkmode=1; alarm_popup=1; ck_img_view_cnt=4;',
-        'Host': 'gall.dcinside.com',
-        'Pragma': 'no-cache',
-        'Referer': 'https://www.dcinside.com/',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'origin',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': 'Windows',
-    };
     testUrl = 'https://api.ipify.org';
 
     constructor (isProxy) {
         this.isProxy = isProxy;
-        this.headers = this.dcHeaders;
     }
 
-    async axiosFetcher(url, timeout = 5000, baseBackoff = 20) {
+    async axiosFetcher(url, method = 'GET', headers = {}, data = null, timeout = 5000, baseBackoff = 20) {
         let socksProxyAgent = null;
 
         for (let attempt = 1; attempt <= 5; attempt++) {
+            headers['User-Agent'] = this.getRandomUA();
             if(this.isProxy) socksProxyAgent = this.getRandomSocksProxy();
             
             const axiosInstance = axios.create({
                 httpAgent: socksProxyAgent,
-                headers: this.headers,
+                headers: headers,
                 proxy: false,
                 timeout,
             });
@@ -101,7 +82,18 @@ module.exports = class fetchUtil {
             );
 
             try {
-                const response = await axiosInstance.get(url); 
+                const requestConfig = {
+                    method,
+                    url
+                };
+
+                if (method.toUpperCase() === 'GET') {
+                    if (data) requestConfig.params = data;
+                } else {
+                    if (data) requestConfig.data = data;
+                }
+
+                const response = await axiosInstance(requestConfig);
                 return response;
             } catch (error) {
                 if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.message);
@@ -110,35 +102,14 @@ module.exports = class fetchUtil {
         }
         throw new Error('프록시 서버에 문제가 있습니다.');
     }
-    
-    async testAxiosFetcher(timeout = 5000) {
-        let socksProxyAgent = null;
-
-        if(this.isProxy) socksProxyAgent = this.getRandomSocksProxy();
-
-        const axiosInstance = axios.create({
-            httpAgent: socksProxyAgent,
-            headers: this.headers,
-            proxy: false,
-            timeout,
-        });
-
-        try {
-            const response = await axiosInstance.get(this.testUrl); 
-            return response;
-        } catch (error) {
-            console.log(error.message);
-        }
-    }
 
     getRandomSocksProxy() {
         const socksProxy = this.socksproxyList[Math.floor(Math.random() * this.socksproxyList.length)];
         const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
         const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl);
         
-        this.headers['User-Agent'] = this.getRandomUA();
-        this.headers['X-Forwarded-For'] = socksProxy.ip;
-        this.headers['Forwarded'] = `for=${socksProxy.ip}`;
+        headers['X-Forwarded-For'] = socksProxy.ip;
+        headers['Forwarded'] = `for=${socksProxy.ip}`;
 
         return socksProxyAgent;
     }

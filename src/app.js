@@ -6,15 +6,23 @@ configExpress(app);
 
 const identityController = require('./controller/identityController');
 const filenameController = require('./controller/filenameController');
+const deleteMyPostsController = require('./controller/deleteMyPostsController');
 
 const identitycontroller = new identityController();
 const filenamecontroller = new filenameController();
+const deleteMyPostscontroller = new deleteMyPostsController();
 
 app.get('/', (req, res) => {
     const { mode, type } = req.query;
+
+    const modeTypeMapping = {
+        'identity': 'search_name',
+        'delete-post': 'posts',
+    };
+
     res.render('index', {
         mode: mode || 'identity',
-        type: (mode === 'identity' && type) ? type : 'search_name',
+        type: (type) ? type : modeTypeMapping[mode] || '',
     });
 });
 
@@ -49,6 +57,9 @@ app.post('/api/client-input', async (req, res) => {
         case 'filename':
             await filenamecontroller.init(req, res);
             break;
+        case 'delete-post':
+            await deleteMyPostscontroller.init(req, res);
+            break;
         default:
             break;
     }
@@ -74,5 +85,12 @@ app.delete('/api/nickname-list', async (req, res) => {
     res.json({ status: 'success' });
 });
 
+app.get('/api/my-post-comment', async (req, res) => {
+    try {
+        await deleteMyPostscontroller.deletePostsOrComments(req, res);
+    } catch (error) {
+        console.log(error);
+    }
+});
 
 module.exports = app;

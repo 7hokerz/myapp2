@@ -1,0 +1,34 @@
+<% if(mode === 'delete-post') { %>
+
+    <p> 종류:
+        <select id="delete-type">
+            <option value="posts" 
+                <%= type === 'posts' ? 'selected' : '' %>
+            >
+                게시글
+            </option>
+            <option value="comment" 
+                <%= type === 'comment' ? 'selected' : '' %>
+            >
+                댓글
+            </option>
+        </select>
+    </p>
+
+    <p> UID (식별코드): 
+        <input type="text" id="uid">
+    </p>
+
+    <p> cno:  
+        <input type="number" id="cno">
+    </p>
+
+    <p> PHPSESSID: 
+        <input type="text" id="PHPSESSID">
+    </p>
+
+    <p> 시작 페이지: 
+        <input type="number" id="start-page" step="1" value="1">
+    </p>
+
+<% } %>
