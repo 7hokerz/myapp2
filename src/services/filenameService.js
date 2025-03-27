@@ -107,15 +107,15 @@ module.exports = class filenameService {
         const postNoArr = Array.from(this.postNoSet);
 
         for ( // 랜덤 병렬 요청
-            let i = 0, batch = Math.floor(Math.random() * 5) + 3; 
+            let i = 0, batch = Math.floor(Math.random() * 5) + 20; 
             i < postNoArr.length; 
-            i += batch, batch = Math.floor(Math.random() * 5) + 3
+            i += batch, batch = Math.floor(Math.random() * 5) + 20
         ) { 
             const slicedArr = postNoArr.slice(i, i + batch); 
             const results = await Promise.allSettled(
                 slicedArr.map((no) => {
                     const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
-                    return this.fetchUtil.axiosFetcher(url, 1000);
+                    return this.fetchUtil.axiosFetcher(url, 5000);
                 })
             );
 
@@ -126,7 +126,7 @@ module.exports = class filenameService {
                     const html = response.value.data;
                     const $ = cheerio.load(html);
                     const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
-                    
+                    //console.log(filename);
                     if(!filename) {
                         postNoArr.push(no);
                     } else {

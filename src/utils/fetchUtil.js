@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { HttpsProxyAgent } = require('https-proxy-agent');
+//const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 
 module.exports = class fetchUtil {
@@ -51,66 +51,14 @@ module.exports = class fetchUtil {
         ];
     }
 
-    async fetcher(url, timeout = 2000) {
-        for (let attempt = 0; attempt < 6; attempt++) {
-            const proxy = this.getRandomProxy();
-            const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
-            const proxyAgent = new HttpsProxyAgent(proxyUrl);
-
-            const controller = new AbortController();
-            const { signal } = controller;
-            const timeoutid = setTimeout(() => controller.abort(), timeout);
-            
-            try {
-                const response = await fetch(url, {
-                    agent: proxyAgent,
-                    headers: {
-                        'User-Agent': this.getRandomUA(),
-                        'Accept': 'text/html',
-                        'Accept-Encoding': 'br, gzip, deflate',
-                        'Referer': 'https://www.dcinside.com/',
-                        'Connection': 'close',
-                        'Cache-Control': 'no-cache',
-                        'X-Forwarded-For': `${proxy.ip}`,
-                        'Forwarded': `for=${proxy.ip}`,
-                        'Via': '1.1 google',
-                    },
-                    signal,
-                });
-                return response;
-            } catch (error) {
-                if (error.name !== 'AbortError') console.error(error);
-                if(attempt < 6) {
-                    if(attempt >= 3) {
-                        if(error.response) console.log(`상태 코드: ${error.response.status}`);
-                        console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
-                    }
-                    continue;
-                }
-                throw error;
-            } finally {
-                if (proxyAgent) {
-                    proxyAgent.destroy();
-                }
-                clearTimeout(timeoutid);
-            }
-        }
-        throw new Error('프록시 서버에 문제가 있습니다.');
-    }
-
     async axiosFetcher(url, timeout = 5000) {
         for (let attempt = 1; attempt <= 5; attempt++) {
-            //const httpsProxy = this.getRandomHttpProxy();
-            //const HttpsProxyUrl = `http://${httpsProxy.ip}:${httpsProxy.port}`;
-            //const httpsProxyAgent = new HttpsProxyAgent(HttpsProxyUrl);
-
             const socksProxy = this.getRandomSocksProxy();
             const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
             const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl);
             
             const axiosInstance = axios.create({
                 httpAgent: socksProxyAgent,
-                //httpsAgent: socksProxyAgent,
                 headers: {
                     'User-Agent': this.getRandomUA(),
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -176,5 +124,50 @@ module.exports = class fetchUtil {
 
 
 /*
-        
+         async fetcher(url, timeout = 2000) {
+        for (let attempt = 0; attempt < 6; attempt++) {
+            const proxy = this.getRandomProxy();
+            const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
+            const proxyAgent = new HttpsProxyAgent(proxyUrl);
+
+            const controller = new AbortController();
+            const { signal } = controller;
+            const timeoutid = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(url, {
+                    agent: proxyAgent,
+                    headers: {
+                        'User-Agent': this.getRandomUA(),
+                        'Accept': 'text/html',
+                        'Accept-Encoding': 'br, gzip, deflate',
+                        'Referer': 'https://www.dcinside.com/',
+                        'Connection': 'close',
+                        'Cache-Control': 'no-cache',
+                        'X-Forwarded-For': `${proxy.ip}`,
+                        'Forwarded': `for=${proxy.ip}`,
+                        'Via': '1.1 google',
+                    },
+                    signal,
+                });
+                return response;
+            } catch (error) {
+                if (error.name !== 'AbortError') console.error(error);
+                if(attempt < 6) {
+                    if(attempt >= 3) {
+                        if(error.response) console.log(`상태 코드: ${error.response.status}`);
+                        console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
+                    }
+                    continue;
+                }
+                throw error;
+            } finally {
+                if (proxyAgent) {
+                    proxyAgent.destroy();
+                }
+                clearTimeout(timeoutid);
+            }
+        }
+        throw new Error('프록시 서버에 문제가 있습니다.');
+    }   
 */
