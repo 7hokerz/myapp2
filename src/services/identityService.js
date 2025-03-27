@@ -4,8 +4,8 @@ const collectDAO = require('../repositories/collectDAO');
 
 module.exports = class collectService {
 
-    constructor(SSEUtil, galleryType, galleryId, limit, pos, content, type, id) {
-        this.fetchUtil = new fetchUtil();
+    constructor(SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy) {
+        this.fetchUtil = new fetchUtil(isProxy);
         this.collectDAO = new collectDAO();
         this.idMap = new Map();
         this.noSet = new Set();

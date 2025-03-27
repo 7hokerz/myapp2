@@ -10,9 +10,9 @@ module.exports = class filenameController {
     }
 
     async init(req, res) {
-        const { galleryType, GID: galleryId, limit, startPage } = req.body;
+        const { galleryType, GID: galleryId, limit, startPage, isProxy } = req.body;
         
-        this.filenameService = new filenameService(this.SSEUtil, galleryType, galleryId, limit, startPage);
+        this.filenameService = new filenameService(this.SSEUtil, galleryType, galleryId, limit, startPage, isProxy);
         this.stopFlag = false;
     }
 

@@ -56,8 +56,8 @@ module.exports = class filenameService {
         'first3159', // 모갤파딱
     ];
     
-    constructor(SSEUtil, galleryType, galleryId, limit, startPage) {
-        this.fetchUtil = new fetchUtil();
+    constructor(SSEUtil, galleryType, galleryId, limit, startPage, isProxy) {
+        this.fetchUtil = new fetchUtil(isProxy); 
         this.postNoSet = new Set();
         this.SSEUtil = SSEUtil;
         

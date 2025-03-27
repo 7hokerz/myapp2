@@ -21,7 +21,7 @@ app.get('/', (req, res) => {
 app.get('/api/user/stop', (req, res) => {
     identitycontroller.stopSearch();
     filenamecontroller.stopSearch();
-    res.json({ message: '검색이 중지되었습니다.' });
+    res.json({ message: '검색 중지 요청 완료.' });
 });
 
 app.get('/api/user/collect', async (req, res) => {
@@ -71,7 +71,6 @@ app.get('/api/gallery-list', async (req, res) => {
 app.delete('/api/nickname-list', async (req, res) => {
     const { galleryid } = req.query;
     await collectservice.deleteGarbage(galleryid);
-    console.log('작업 완료.');
     res.json({ status: 'success' });
 });
 

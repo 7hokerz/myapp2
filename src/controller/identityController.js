@@ -18,7 +18,8 @@ module.exports = class identityController {
             type, 
             UID: id, 
             pos, 
-            limit, 
+            limit,
+            isProxy, 
         } = req.body;
         
         let content = null;
@@ -34,7 +35,7 @@ module.exports = class identityController {
                 break;
         }
         
-        this.identityService = new identityService(this.SSEUtil, galleryType, galleryId, limit, pos, content, type, id);
+        this.identityService = new identityService(this.SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy);
         this.stopFlag = false;
     }
     

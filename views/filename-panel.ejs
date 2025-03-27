@@ -42,6 +42,8 @@
             this.statusDiv1 = document.getElementById('status1');
             this.statusDiv2 = document.getElementById('status2');
             this.postsTbody = document.getElementById('posts');
+            this.isProxy = document.getElementById('is-proxy');
+            this.isTest = document.getElementById('is-test');
             this.stopBtn = document.getElementById('stop');
             this.searchBtn = document.getElementById('search');
             this.mode = document.getElementById('mode');
@@ -104,6 +106,8 @@
                         galleryType: this.galleryType,
                         GID: this.GID, 
                         mode: this.mode.value,
+                        isProxy: this.isProxy.checked,
+                        isTest: this.isTest.checked,
                         limit: this.limit, 
                         startPage: this.startPage,
                     })
