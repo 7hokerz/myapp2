@@ -165,7 +165,7 @@
 
         async stopSearch() {
             try {
-                await fetch('/api/user/stop'); // 서버에 중지 요청
+                await fetch(`/api/user/stop?mode=${this.mode.value}`); // 서버에 중지 요청
             } catch (error) {
                 console.error('Error:', error);
             }

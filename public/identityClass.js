@@ -1,35 +1,6 @@
-<input type="button" id="search" value="search">
+const BaseClass = require('./baseClass');
 
-<h2>상태</h2>
-<div id="status">
-    <p> 현재 페이지: 0  </p>
-    <p> 남은 페이지: 0  </p>
-    <p> 현재 위치: 0    </p>
-</div>
-
-<h2>고닉에 해당하는 ID</h2>
-<div id="ids">없음</div>
-<input type="button" id="nick-search" value="갤러리에 대한 전체 고닉 검색">
-<input type="button" id="gallery-search" value="고닉에 대한 갤러리 내역 검색">
-<input type="button" id="delete-garbage" value="불필요한 내역 제거" >
-
-<h2>DB에 저장된 고닉</h2>
-<div id="nick-count">고닉 개수: 0</div>
-<table>
-    <thead>
-        <tr>
-            <th>닉네임</th>
-            <th>식별코드</th>
-            <th>갤러리 명</th>
-            <th>추가된 날짜</th>
-        </tr>
-    </thead>
-    <tbody id="nicks">
-    </tbody>
-</table>
-
-<script>
-    class indexPage {
+class IdentityClass extends BaseClass {
     constructor() {
         this.init();
         this.addEvents();
@@ -52,7 +23,6 @@
         this.idsDiv = document.getElementById('ids');
         this.statusDiv = document.getElementById('status');
         this.nicksTbody = document.getElementById('nicks');
-        this.isProxy = document.getElementById('is-proxy');
         this.searchBtn = document.getElementById('search');
         this.stopBtn = document.getElementById('stop');
         this.mode = document.getElementById('mode');
@@ -148,7 +118,6 @@
                     keyword: this.keyword,
                     mode: this.mode.value,
                     type: this.type.value,
-                    isProxy: this.isProxy.checked,
                     UID: this.UID, 
                     pos: this.pos, 
                     limit: this.limit, 
@@ -192,14 +161,6 @@
                 this.inputStatus(false);
             };
         
-        } catch (error) {
-            console.error('Error:', error);
-        }
-    }
-    
-    async stopSearch() {
-        try {
-            await fetch(`/api/user/stop?mode=${this.mode.value}`); // 서버에 중지 요청
         } catch (error) {
             console.error('Error:', error);
         }
@@ -280,6 +241,5 @@
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    new indexPage();
+    new IdentityClass();
 });
-</script>

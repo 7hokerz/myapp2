@@ -1,0 +1,147 @@
+const BaseClass = require('./baseClass');
+
+class FilenameClass extends BaseClass {
+    constructor() {
+        this.init();
+        this.addEvents();
+    }
+
+    init() {
+        window.onload = () => {
+            const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
+            if(savedValue) {
+                document.getElementById('gallery').value = savedValue.galleryType || '';
+                document.getElementById('galleryId').value = savedValue.GID || '';
+                document.getElementById('limit').value = savedValue.limit || '';
+                document.getElementById('start-page').value = savedValue.startPage || 1;
+            }
+        };
+
+        this.statusDiv1 = document.getElementById('status1');
+        this.statusDiv2 = document.getElementById('status2');
+        this.postsTbody = document.getElementById('posts');
+        this.isProxy = document.getElementById('is-proxy');
+        this.isTest = document.getElementById('is-test');
+        this.stopBtn = document.getElementById('stop');
+        this.searchBtn = document.getElementById('search');
+        this.mode = document.getElementById('mode');
+        this.saveOptions = document.getElementById('save-options');
+        this.inputStatus(false);
+    }
+
+    addEvents() {
+        this.mode.addEventListener('change', () => {
+            location.href = `/?mode=${this.mode.value}`;
+        });
+
+        this.saveOptions.addEventListener('click', () => {
+            this.getValueFromUsers();
+            sessionStorage.setItem('inputs', JSON.stringify({
+                galleryType: this.galleryType,
+                GID: this.GID, 
+                limit: this.limit,
+                startPage: this.startPage,
+            }));
+        });
+    
+        this.stopBtn.addEventListener('click', () => {
+            this.stopSearch();
+        })
+
+        this.searchBtn.addEventListener('click', () => {
+            this.searchFilenameFromSite();
+        })
+    }
+
+    inputStatus(v) {
+        this.searchBtn.disabled = v;
+        this.stopBtn.disabled = !v;
+    }
+
+    getValueFromUsers() {
+        this.galleryType = document.getElementById('gallery').value;
+        this.GID = document.getElementById('galleryId').value.trim();
+        this.limit = document.getElementById('limit').value.trim() || 1;
+        this.startPage = document.getElementById('start-page').value.trim();
+    }
+
+    async searchFilenameFromSite() {
+        this.getValueFromUsers();
+
+        if(!(this.GID && this.limit < 1001 && this.startPage > 0)) {
+            alert('유효한 값을 입력하세요.');
+            return;
+        }
+        this.inputStatus(true);
+
+        this.postsTbody.innerHTML = '';
+
+        try {
+            const response = await fetch(`/api/client-input/?mode=${this.mode.value}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    galleryType: this.galleryType,
+                    GID: this.GID, 
+                    mode: this.mode.value,
+                    isProxy: this.isProxy.checked,
+                    isTest: this.isTest.checked,
+                    limit: this.limit, 
+                    startPage: this.startPage,
+                })
+            });
+
+            if(!response.ok) {
+                alert('서버와의 통신이 원활하지 않음.');
+                return;
+            }
+            
+            const eventSource = new EventSource(`/api/post/filename`);
+            
+            eventSource.addEventListener('status', (event) => {
+                const data = JSON.parse(event.data);
+                this.statusDiv1.innerHTML = `
+                <p> 현재 페이지: ${data.curPage}    </p>
+                <p> 남은 페이지: ${data.restPage}  </p>`;
+            });
+
+            eventSource.addEventListener('no', (event) => {
+                const data = JSON.parse(event.data);
+                this.statusDiv2.innerHTML = `
+                <p> 현재 게시물 번호: ${data.no}</p>`;
+            });
+
+            eventSource.addEventListener('post', (event) => {
+                const data = JSON.parse(event.data);
+                this.postsTbody.innerHTML += `
+                    <td>
+                        <a href="https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.GID}&no=${data.no}" target="_blank">
+                            ${data.no}
+                        </a>
+                    </td>
+                    <td>${data.filename}</td>`;
+            });
+
+            eventSource.addEventListener('complete', (event) => {
+                eventSource.close();
+                
+                this.statusDiv2.innerHTML += `<p> 작업 완료. </p>`;
+                this.inputStatus(false);
+            });
+
+            eventSource.onerror = () => {
+                eventSource.close();
+                
+                this.statusDiv2.innerHTML = `<p> 연결 오류 발생. </p>`;
+                this.inputStatus(false);
+            };
+        
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    new FilenameClass();
+});

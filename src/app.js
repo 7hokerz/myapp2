@@ -15,20 +15,32 @@ const deleteMyPostscontroller = new deleteMyPostsController();
 app.get('/', (req, res) => {
     const { mode, type } = req.query;
 
-    const modeTypeMapping = {
+    const defaultModeTypeMapping = {
         'identity': 'search_name',
         'delete-post': 'posts',
     };
 
     res.render('index', {
         mode: mode || 'identity',
-        type: (type) ? type : modeTypeMapping[mode] || '',
+        type: type || defaultModeTypeMapping[mode] || '',
     });
 });
 
 app.get('/api/user/stop', (req, res) => {
-    identitycontroller.stopSearch();
-    filenamecontroller.stopSearch();
+    const { mode } = req.query;
+    switch (mode) {
+        case 'identity':
+            identitycontroller.stopSearch();
+            break;
+        case 'filename':
+            filenamecontroller.stopSearch();
+            break;
+        case 'delete-post':
+            deleteMyPostscontroller.stopSearch();
+            break;
+        default:
+            break;
+    }
     res.json({ message: '검색 중지 요청 완료.' });
 });
 
@@ -63,7 +75,6 @@ app.post('/api/client-input', async (req, res) => {
         default:
             break;
     }
-
     res.json({ status: 'success' });
 });
 

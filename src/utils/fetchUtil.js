@@ -1,5 +1,4 @@
 const axios = require('axios');
-//const { HttpsProxyAgent } = require('https-proxy-agent');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 
 module.exports = class fetchUtil {
@@ -59,8 +58,12 @@ module.exports = class fetchUtil {
 
         for (let attempt = 1; attempt <= 5; attempt++) {
             headers['User-Agent'] = this.getRandomUA();
-            if(this.isProxy) socksProxyAgent = this.getRandomSocksProxy();
-            
+            if(this.isProxy) {
+                socksProxyAgent = this.getRandomSocksProxy();
+                headers['X-Forwarded-For'] = socksProxyAgent.proxy.host;
+                headers['Forwarded'] = `for=${socksProxyAgent.proxy.host}`;
+            }
+
             const axiosInstance = axios.create({
                 httpAgent: socksProxyAgent,
                 headers: headers,
@@ -86,7 +89,7 @@ module.exports = class fetchUtil {
                     method,
                     url
                 };
-
+                
                 if (method.toUpperCase() === 'GET') {
                     if (data) requestConfig.params = data;
                 } else {
@@ -108,9 +111,6 @@ module.exports = class fetchUtil {
         const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
         const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl);
         
-        headers['X-Forwarded-For'] = socksProxy.ip;
-        headers['Forwarded'] = `for=${socksProxy.ip}`;
-
         return socksProxyAgent;
     }
 
