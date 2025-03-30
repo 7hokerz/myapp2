@@ -34,6 +34,7 @@ module.exports = class filenameService {
         'raengbo',
         'entertain',
         'xylitol',
+        'week',
     ];
     excludeList = [
         'took1499', // 접

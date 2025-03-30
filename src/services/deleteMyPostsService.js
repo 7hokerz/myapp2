@@ -43,7 +43,7 @@ module.exports = class deleteMyPostsService {
 
             this.SSEUtil.SSESendEvent('no', { no, status: response.data.result });
 
-            if(response.data.result === 'captcha') {
+            if(response.data.result === 'captcha') { // 캡챠를 해결하기 위한 추가 방법 필요
                 console.log('캡챠');
                 
                 await new Promise(resolve => setTimeout(resolve, 20000));

@@ -24,10 +24,11 @@ module.exports = class collectService {
     };
 
     constructor(SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy) {
-        this.fetchUtil = new fetchUtil(isProxy);
+        this.fetchUtil = new fetchUtil(false);
         this.collectDAO = new collectDAO();
         this.idMap = new Map();
         this.noSet = new Set();
+        this.noSetC = new Set();
         this.SSEUtil = SSEUtil;
         this.curPage = 1;
         this.statBit = 0;
@@ -44,6 +45,11 @@ module.exports = class collectService {
     async getNicknameFromSite() {
         if(this.position < 1) this.position = await this.getTotalPostCount();
         await this.getNicknameFromPostLists();
+
+        for(let v of this.noSet) {
+            await this.getNicknameFromCommentsInPost(v.no);
+        }
+
         this.updateStatus();
         
         return {
@@ -105,6 +111,29 @@ module.exports = class collectService {
             });
             this.statBit |= (1 << 2); // restPage
         }
+    }
+
+    async getNicknameFromCommentsInPost(no) {
+        const url =`https://m.dcinside.com/ajax/response-comment`;
+        const data = {
+            'id': this.galleryId,
+            'no': no,
+            'cpage': 1,
+        };
+        const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers, data);
+        
+        const html = response.data;
+        const $ = cheerio.load(html);
+        
+        $('.all-comment-lst li').each((index, element) => {
+            const uid = $(element).find('a .blockCommentId').attr('data-info');
+
+            if(uid) {
+                const nick = $(element).find('a').text();
+                this.idMap.set(uid, nick);
+                this.noSetC.add({uid, no});
+            }
+        });
     }
 
     async insertToID() {
