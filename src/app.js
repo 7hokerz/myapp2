@@ -13,16 +13,19 @@ const filenamecontroller = new filenameController();
 const deleteMyPostscontroller = new deleteMyPostsController();
 
 app.get('/', (req, res) => {
-    const { mode, type } = req.query;
-
     const defaultModeTypeMapping = {
         'identity': 'search_name',
         'delete-post': 'posts',
     };
 
+    let { mode, type } = req.query;
+
+    mode = mode || 'identity';
+    type = type || defaultModeTypeMapping[mode] || '';
+
     res.render('index', {
-        mode: mode || 'identity',
-        type: type || defaultModeTypeMapping[mode] || '',
+        mode,
+        type,
     });
 });
 

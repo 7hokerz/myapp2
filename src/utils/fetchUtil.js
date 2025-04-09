@@ -14,6 +14,10 @@ module.exports = class fetchUtil {
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (X11; Linux i686; rv:109.0) Gecko/20100101 Firefox/121.0',
     ];
+    userAgentPoolMob = [
+        'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36'
+    ];
     socksproxyList = [
         // usa
         { ip: '184.181.217.220', port:4145 },
@@ -53,11 +57,11 @@ module.exports = class fetchUtil {
         this.isProxy = isProxy;
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, data = null, timeout = 5000, baseBackoff = 20) {
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 5000, baseBackoff = 20) {
         let socksProxyAgent = null;
 
         for (let attempt = 1; attempt <= 5; attempt++) {
-            headers['User-Agent'] = this.getRandomUA();
+            headers['User-Agent'] = this.getRandomUA(isMoblie);
             if(this.isProxy) {
                 socksProxyAgent = this.getRandomSocksProxy();
                 headers['X-Forwarded-For'] = socksProxyAgent.proxy.host;
@@ -99,7 +103,7 @@ module.exports = class fetchUtil {
                 const response = await axiosInstance(requestConfig);
                 return response;
             } catch (error) {
-                if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.message);
+                if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.message, data);
                 await new Promise(resolve => setTimeout((resolve), baseBackoff * 2 ** attempt)); // 지수 백오프
             }
         }
@@ -114,7 +118,8 @@ module.exports = class fetchUtil {
         return socksProxyAgent;
     }
 
-    getRandomUA() {
+    getRandomUA(isMobile) {
+        if(isMobile) return this.userAgentPoolMob[Math.floor(Math.random() * this.userAgentPoolMob.length)];
         return this.userAgentPool[Math.floor(Math.random() * this.userAgentPool.length)];
     }
 }

@@ -1,7 +1,7 @@
 const pool = require('../config/mysql');
 
 module.exports = class collectDAO {
-    async insertToID(identityCode, nickname, galleryCode) {
+    async insertUid(identityCode, nickname, galleryCode) {
         const connection = await pool.getConnection();
 
         const query = `
@@ -15,21 +15,23 @@ module.exports = class collectDAO {
         connection.release();
     }
 
-    async insertToPost(identityCode, postNum, galleryCODE) {
+    async insertPostCommentNo(m, identityCode, postNum, galleryCODE) {
+        const mode = (m) ? 'post_list' : 'comment_list';
+
         const connection = await pool.getConnection();
 
         const checkQuery = `
-        SELECT postNum FROM post_list 
+        SELECT postNum FROM ${mode} 
         WHERE galleryCODE = ? AND identityCode = ?
         ORDER BY postNum ASC`; // 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
 
         const insertQuery = `
-        INSERT INTO post_list (galleryCODE, postNum, identityCode)
+        INSERT INTO ${mode} (galleryCODE, postNum, identityCode)
         VALUES(?, ?, ?)`; 
         
         const updateQuery = `
-        UPDATE post_list SET postNum = ?
-        WHERE galleryCODE = ? AND postNum = ?`;
+        UPDATE ${mode} SET postNum = ?
+        WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
 
         const [rows] = await connection.execute(checkQuery, [galleryCODE, identityCode]);
 
@@ -45,7 +47,7 @@ module.exports = class collectDAO {
                         break; 
                     }
                     else if(v.postNum < postNum) { // 번호가 낮은 경우
-                        await connection.execute(updateQuery, [postNum, galleryCODE, v.postNum]);
+                        await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, v.postNum]);
                         break;
                     }
                 }
@@ -55,38 +57,46 @@ module.exports = class collectDAO {
         connection.release();
     }
 
-    async getUIDByGalleryCode(galleryCode) {
+    async getCommentNoByUID(identityCode) {
         const connection = await pool.getConnection();
         
         const query = `
-        SELECT identityCode, nickname, galleryName, added_date
-        FROM fixed_name_list F
-        JOIN gallery_list G
-        ON F.galleryCODE = G.galleryCODE
-        WHERE F.galleryCODE = ?
-        ORDER BY 
-            identityCode ASC,
-            galleryName ASC`;
+        SELECT 
+            f.identityCode, f.nickname, f.galleryCODE, c.postNum 
+        FROM 
+            dc.fixed_name_list f
+        JOIN 
+            dc.comment_list c
+        ON 
+            f.identityCode = c.identityCode
+        AND 
+            f.galleryCODE = c.galleryCode
+        WHERE 
+            f.identityCode = ?`;
 
-        const [rows] = await connection.execute(query, [galleryCode]);
+        const [rows] = await connection.execute(query, [identityCode]);
         
         connection.release();
 
         return rows;
     }
 
-    async getGalleryCodeByUID(identityCode) {
+    async getPostNoByUID(identityCode) {
         const connection = await pool.getConnection();
         
         const query = `
-        SELECT identityCode, nickname, galleryName, added_date
-        FROM fixed_name_list F
-        JOIN gallery_list G
-        ON F.galleryCODE = G.galleryCODE
-        WHERE F.identityCode = ?
-        ORDER BY 
-            identityCode ASC,
-            galleryName ASC`;
+        SELECT 
+            f.identityCode, f.nickname, f.galleryCODE, p.postNum 
+        FROM 
+            dc.fixed_name_list f
+        JOIN 
+            dc.post_list p
+        ON 
+            f.identityCode = p.identityCode
+        AND 
+            f.galleryCODE = p.galleryCode
+        WHERE 
+            f.identityCode = ?`;
 
         const [rows] = await connection.execute(query, [identityCode]);
        

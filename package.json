@@ -1,9 +1,11 @@
 {
   "name": "myapp2",
   "version": "1.0.0",
+  "bin": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon --watch ../myapp2 --ignore dist --exec \"node server.js\""
+    "start": "nodemon --watch ../myapp2 --ignore dist --exec \"node server.js\"",
+    "build": "nexe server.js -r views/**/* --build"
   },
   "keywords": [],
   "author": "",

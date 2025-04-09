@@ -103,7 +103,7 @@ module.exports = class filenameService {
         }
     }
 
-    async getPostsFromSite() {
+    async getPostsFromSite() { //des
         const url = `
         https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
         const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
@@ -122,6 +122,25 @@ module.exports = class filenameService {
                 this.postNoSet.add(no);
             }
         });
+    }
+
+    async getPostsFromSiteMob() { // mob (mob 헤더 추가 필요)
+        const url = `
+        https://m.dcinside.com/board/${this.galleryId}?page=${this.startPage}`;
+
+        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_mob, 1);
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        $(".gall-detail-lst li .gall-detail-lnktb").each((index, element) => {
+            const type = $(element).find('.lt .subject-add');
+            
+            const len = type.length;
+            if($(type).find('.sp-lst.sp-lst-img').length || $(type).find('.sp-lst.sp-lst-recoimg').length) {
+                //번호 찾기에 대해 필요
+            }
+        });
+
     }
 
     async getFilenameFromPosts() {

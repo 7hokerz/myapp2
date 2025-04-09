@@ -39,7 +39,7 @@ module.exports = class deleteMyPostsService {
             const data = new FormData();
             data.set('no', no);
 
-            const response = await this.fetchUtil.axiosFetcher(this.deleteUrl, 'POST', this.headers, data);
+            const response = await this.fetchUtil.axiosFetcher(this.deleteUrl, 'POST', this.headers, 0, data);
 
             this.SSEUtil.SSESendEvent('no', { no, status: response.data.result });
 

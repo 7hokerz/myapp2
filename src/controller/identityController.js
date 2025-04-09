@@ -46,7 +46,7 @@ module.exports = class identityController {
         while(!(this.stopFlag)) {
             const { idMap, status } = await this.identityService.getNicknameFromSite();
 
-            if(status.restPage <= 0 || status.position < 0) this.stopFlag = true;
+            if(status.restPage <= 0 || status.position <= 0) this.stopFlag = true;
             
             const data = Array.from(idMap).sort();
             
