@@ -70,6 +70,7 @@ module.exports = class filenameService {
         'ssddo', // 기타 걸그룹갤
         'definite2251', // 엳음갤
         'decided9769', // 엳음갤, 한엳갤
+        'canada9224', // 한엳갤
         'vh4zz8yvws18', // 파딱
         'vjvadfkg9x2e', // 파딱(이었던)
         'illit12345', // 파딱(이었던)
@@ -143,15 +144,79 @@ module.exports = class filenameService {
 
     }
 
-    async getFilenameFromPosts() {
-        const postNoArr = Array.from(this.postNoSet);
+    async getFilenameFromPostsT() { //des
+        const postNoQueue = Array.from(this.postNoSet);
+        let currentQueue = [...postNoQueue];
+        const failedQueue = [];
+        
+        /*  map 함수 = 순차(반복문)
+            하지만 안에는 익명 async 함수이므로 함수 내부의 로직은 await 키워드에 따라 순차 진행하지만
+            Promise 객체 즉시 반환 후 다음 작업 진행
+            map 함수는 이러한 Promise 객체를 모아둔 배열을 생성하고 
+            allSettled 함수는 각 Promise 객체의 결과를 기다렸다가 results 배열에 최종 저장.
+            따라서 아래 함수 자체는 동시에 실행되지만 랜덤 시간 이후에 요청이 발생하므로
+            각 요청마다 요청 시작 시간이 다름.
+        */
+        while(currentQueue.length > 0) {
+            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            const batch = currentQueue.splice(0, batchSize);
+
+            const results = await Promise.allSettled(
+                batch.map(async (no) => {
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100); // 랜덤 시간 이후 요청
+
+                    const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
+                        return { no, response: response };
+                    } catch (error) {
+                        return { no, reason: error };
+                    }
+                })
+            );
+
+            results.forEach(result => {
+                const { status, value, reason } = result;
+                
+                if(status === "fulfilled") {
+                    const { no, response } = value;
+                    const html = response.data;
+                    const $ = cheerio.load(html);
+                    const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
+                    //console.log(filename);
+                    if(!filename) {
+                        failedQueue.push(no);
+                    } else {
+                        if (this.galleryList.some((e) => filename.includes(e))) {
+                            this.SSEUtil.SSESendEvent('post', { filename: filename, no: no });
+                            console.log(`[Found] ${filename} (Post ${no})`);
+                        }
+                    }
+                    this.SSEUtil.SSESendEvent('no', { no: no, });
+                } else {
+                    failedQueue.push(no);
+                    console.log(reason, no);
+                }
+            });
+
+            // 배치 처리 후 딜레이
+            if (currentQueue.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100);
+            }
+        }
+    }
+}
+
+/*
+async getFilenameFromPosts() { //des
+        const postNoQueue = Array.from(this.postNoSet);
 
         for ( // 랜덤 병렬 요청
             let i = 0, batch = Math.floor(Math.random() * 5) + 20; 
-            i < postNoArr.length; 
+            i < postNoQueue.length; 
             i += batch, batch = Math.floor(Math.random() * 5) + 20
         ) { 
-            const slicedArr = postNoArr.slice(i, i + batch); 
+            const slicedArr = postNoQueue.slice(i, i + batch); 
             const results = await Promise.allSettled(
                 slicedArr.map((no) => {
                     const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
@@ -160,7 +225,7 @@ module.exports = class filenameService {
             );
 
             results.forEach((response, index) => {
-                const no = postNoArr[i + index];
+                const no = postNoQueue[i + index];
 
                 if (response.status === "fulfilled") {
                     const html = response.value.data;
@@ -168,7 +233,7 @@ module.exports = class filenameService {
                     const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
                     //console.log(filename);
                     if(!filename) {
-                        postNoArr.push(no);
+                        postNoQueue.push(no);
                     } else {
                         if(this.galleryList.some((e) => filename.includes(e))) {
                             this.SSEUtil.SSESendEvent('post', {
@@ -180,16 +245,14 @@ module.exports = class filenameService {
                     }
                     this.SSEUtil.SSESendEvent('no', { no: no, });
                 } else {
-                    postNoArr.push(no);
+                    postNoQueue.push(no);
                     console.log(response.reason, no);
                 }
             });
             await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 150) + 100)); // 디도스 방지 딜레이 
         }
     }
-}
-
-
+*/
 
 
 

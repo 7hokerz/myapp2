@@ -120,7 +120,7 @@ module.exports = class fetchUtil {
 
     getRandomUA(isMobile) {
         if(isMobile) return this.userAgentPoolMob[Math.floor(Math.random() * this.userAgentPoolMob.length)];
-        return this.userAgentPool[Math.floor(Math.random() * this.userAgentPool.length)];
+        else return this.userAgentPool[Math.floor(Math.random() * this.userAgentPool.length)];
     }
 }
 

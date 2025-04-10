@@ -15,46 +15,57 @@ module.exports = class collectDAO {
         connection.release();
     }
 
-    async insertPostCommentNo(m, identityCode, postNum, galleryCODE) {
-        const mode = (m) ? 'post_list' : 'comment_list';
+    async insertPostCommentNo(mode, identityCode, postNum, galleryCODE) {
+        const tableName = (mode) ? 'post_list' : 'comment_list';
 
-        const connection = await pool.getConnection();
+        let connection;
+        try {
+            connection = await pool.getConnection();
+            await connection.beginTransaction();
+            const checkQuery = `
+            SELECT postNum FROM ${tableName} 
+            WHERE identityCode = ? AND galleryCODE = ?
+            ORDER BY postNum ASC`; // 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
 
-        const checkQuery = `
-        SELECT postNum FROM ${mode} 
-        WHERE galleryCODE = ? AND identityCode = ?
-        ORDER BY postNum ASC`; // 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
+            const [rows] = await connection.execute(checkQuery, [identityCode, galleryCODE]);
 
-        const insertQuery = `
-        INSERT INTO ${mode} (galleryCODE, postNum, identityCode)
-        VALUES(?, ?, ?)`; 
-        
-        const updateQuery = `
-        UPDATE ${mode} SET postNum = ?
-        WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
+            const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증
+            
+            if(!isDuplicate) {
+                const insertQuery = `
+                INSERT INTO ${tableName} (galleryCODE, postNum, identityCode)
+                VALUES(?, ?, ?)`; 
+                
+                const updateQuery = `
+                UPDATE ${tableName} SET postNum = ?
+                WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
 
-        const [rows] = await connection.execute(checkQuery, [galleryCODE, identityCode]);
-
-        const stat = rows.findIndex((e) => e.postNum == postNum); // 중복 번호 검증
-        
-        if(stat === -1) {
-            if(rows.length === 0) {
-                await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]); 
-            } else {
-                for(let v of rows) {
-                    if(rows.length < 2) { // 요소가 2개 미만
-                        await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]);
-                        break; 
-                    }
-                    else if(v.postNum < postNum) { // 번호가 낮은 경우
-                        await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, v.postNum]);
-                        break;
+                if(rows.length === 0) {
+                    await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]); 
+                } else {
+                    for(let v of rows) {
+                        if(rows.length < 2) { // 요소가 2개 미만
+                            await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]);
+                            break; 
+                        }
+                        else if(v.postNum < postNum) { // 번호가 낮은 경우
+                            await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, v.postNum]);
+                            break;
+                        }
                     }
                 }
             }
+            await connection.commit();
+        } catch (error) {
+            console.error("Error in insertPostCommentNo:", error);
+            if(connection) {
+                await connection.rollback();
+            }
+        } finally {
+            if (connection) {
+                connection.release(); // 성공/실패 여부와 관계없이 커넥션 반환
+            }
         }
-
-        connection.release();
     }
 
     async getCommentNoByUID(identityCode) {
@@ -118,3 +129,47 @@ module.exports = class collectDAO {
     }
 
 }
+
+/*
+async insertPostCommentNo(mode, identityCode, postNum, galleryCODE) {
+        const tableName = (mode) ? 'post_list' : 'comment_list';
+
+        const connection = await pool.getConnection();
+
+        const checkQuery = `
+        SELECT postNum FROM ${tableName} 
+        WHERE identityCode = ? AND galleryCODE = ?
+        ORDER BY postNum ASC`; // 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
+
+        const insertQuery = `
+        INSERT INTO ${tableName} (galleryCODE, postNum, identityCode)
+        VALUES(?, ?, ?)`; 
+        
+        const updateQuery = `
+        UPDATE ${tableName} SET postNum = ?
+        WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
+
+        const [rows] = await connection.execute(checkQuery, [identityCode, galleryCODE]);
+
+        const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증
+
+        if(!isDuplicate) {
+            if(rows.length === 0) {
+                await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]); 
+            } else {
+                for(let v of rows) {
+                    if(rows.length < 2) { // 요소가 2개 미만
+                        await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]);
+                        break; 
+                    }
+                    else if(v.postNum < postNum) { // 번호가 낮은 경우
+                        await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, v.postNum]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        connection.release();
+    }
+*/

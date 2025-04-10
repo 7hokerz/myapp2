@@ -4,7 +4,11 @@ const collectDAO = require('../repositories/collectDAO');
 
 module.exports = class collectService {
     commentApi = `https://m.dcinside.com/ajax/response-comment`;
-    
+    STATUS_FLAGS = {
+        INVALID_PAGE: 1 << 0,
+        INVALID_POSITION: 1 << 1,
+        NO_MORE_POSTS: 1 << 2,
+    };
     headers_des = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
@@ -107,9 +111,9 @@ module.exports = class collectService {
         const isValidPage = hasPosts && this.curPage === urlPage; // 이전에 조회한 적 없거나 유효한 페이지인가?
         
         if (!isValidPage) {
-            this.statBit |= hasPosts ? 0 : (1 << 2); // restPage
-            this.statBit |= (1 << 1); // position
-            this.statBit |= (1 << 0); // curPage
+            this.statBit |= hasPosts ? 0 : this.STATUS_FLAGS.NO_MORE_POSTS;
+            this.statBit |= this.STATUS_FLAGS.INVALID_POSITION;
+            this.statBit |= this.STATUS_FLAGS.INVALID_PAGE; 
         } else {
             $('.gall_list .ub-content.us-post').each((index, element) => {
                 const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
@@ -124,21 +128,23 @@ module.exports = class collectService {
                     if(isComment) this.hasCommentPostNoSet.add(no);
                 }
             });
-            this.statBit |= (1 << 2); // restPage
+            this.statBit |= this.STATUS_FLAGS.NO_MORE_POSTS; // restPage
         }
     }
 
-    async getNicknameFromCommentsInPost() { // mob
-        const postNoArr = Array.from(this.hasCommentPostNoSet);
+    async getNicknameFromCommentsInPost() { //mob
+        const postNoQueue = Array.from(this.hasCommentPostNoSet);
+        let currentQueue = [...postNoQueue];
+        const failedQueue = [];
 
-        for ( 
-            let i = 0, batch = Math.floor(Math.random() * 5) + 20; 
-            i < postNoArr.length; 
-            i += batch, batch = Math.floor(Math.random() * 5) + 20
-        ) { 
-            const slicedArr = postNoArr.slice(i, i + batch); 
-            const results = await Promise.allSettled( // 댓글 api
-                slicedArr.map((no) => {
+        while(currentQueue.length > 0) {
+            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            const batch = currentQueue.splice(0, batchSize);
+
+            const results = await Promise.allSettled(
+                batch.map(async (no) => {
+                    await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100); // 랜덤 시간 이후 요청
+                    
                     const url = this.commentApi;
                     const data = {
                         'id': this.galleryId,
@@ -146,15 +152,21 @@ module.exports = class collectService {
                         'cpage': 1,
                     };
                     this.headers_mob['Referer'] = `https://m.dcinside.com/board/${this.galleryId}/${no}`;
-                    return this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 0, data);
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 1, data);
+                        return { no, response: response };
+                    } catch (error) {
+                        return { no, reason: error };
+                    }
                 })
             );
 
-            results.forEach((response, index) => {
-                const no = postNoArr[i + index];
+            results.forEach(result => {
+                const { status, value, reason } = result;
 
-                if (response.status === "fulfilled") {
-                    const html = response.value.data;
+                if(status === "fulfilled") {
+                    const { no, response } = value;
+                    const html = response.data;
                     const $ = cheerio.load(html);
                     $('.all-comment-lst li').each((index, element) => {
                         const uid = $(element).find('a .blockCommentId').attr('data-info');
@@ -166,11 +178,14 @@ module.exports = class collectService {
                         }
                     });
                 } else {
-                    postNoArr.push(no);
-                    console.log(response.reason, no);
+                    failedQueue.push(no);
+                    console.log(reason, no);
                 }
             });
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 150) + 100)); // 디도스 방지 딜레이 
+            // 배치 처리 후 딜레이
+            if (currentQueue.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100);
+            }
         }
     }
 
@@ -229,14 +244,62 @@ module.exports = class collectService {
     }
 
     updateStatus() {
-        this.restPage = (this.statBit & (1 << 2)) ? this.restPage - 1: this.restPage;
+        this.restPage = (this.statBit & this.STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
 
-        this.position = (this.statBit & (1 << 1)) ? this.position - 10000: this.position;
+        this.position = (this.statBit & this.STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position;
 
-        this.curPage = (this.statBit & (1 << 0)) ? 1 : this.curPage + 1;
+        this.curPage = (this.statBit & this.STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
 
         this.statBit = 0;
     }
 }
 
 
+/*
+async getNicknameFromCommentsInPost() { // mob
+        const postNoArr = Array.from(this.hasCommentPostNoSet);
+
+        for ( 
+            let i = 0, batch = Math.floor(Math.random() * 5) + 20; 
+            i < postNoArr.length; 
+            i += batch, batch = Math.floor(Math.random() * 5) + 20
+        ) { 
+            const slicedArr = postNoArr.slice(i, i + batch); 
+            const results = await Promise.allSettled( // 댓글 api
+                slicedArr.map((no) => {
+                    const url = this.commentApi;
+                    const data = {
+                        'id': this.galleryId,
+                        'no': no,
+                        'cpage': 1,
+                    };
+                    this.headers_mob['Referer'] = `https://m.dcinside.com/board/${this.galleryId}/${no}`;
+                    return this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 0, data);
+                })
+            );
+
+            results.forEach((response, index) => {
+                const no = postNoArr[i + index];
+
+                if (response.status === "fulfilled") {
+                    const html = response.value.data;
+                    const $ = cheerio.load(html);
+                    $('.all-comment-lst li').each((index, element) => {
+                        const uid = $(element).find('a .blockCommentId').attr('data-info');
+                        const nick = $(element).find('a.nick').text();
+                        
+                        if(uid && nick === 'ㅇㅇ') { // 닉네임이 ㅇㅇ
+                            this.idMap.set(uid, nick);
+                            this.noSetC.add({uid, no});
+                        }
+                    });
+                } else {
+                    postNoArr.push(no);
+                    console.log(response.reason, no);
+                }
+            });
+            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 150) + 100)); // 디도스 방지 딜레이 
+        }
+    }
+
+*/
