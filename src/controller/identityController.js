@@ -3,10 +3,10 @@ const SSEUtil = require('../utils/SSEUtil');
 const identityService = require('../services/identityService');
 
 module.exports = class identityController {
-    
+    stopFlag = true;
+    SSEUtil = new SSEUtil();
     constructor() {
-        this.stopFlag = true;
-        this.SSEUtil = new SSEUtil();
+        
     }
 
     async init(req, res) {
@@ -35,7 +35,17 @@ module.exports = class identityController {
                 break;
         }
         
-        this.identityService = new identityService(this.SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy);
+        this.identityService = new identityService({
+            SSEUtil: this.SSEUtil, 
+            galleryType: galleryType, 
+            galleryId: galleryId, 
+            limit: limit, 
+            pos: pos, 
+            content: content, 
+            type: type, 
+            id: id, 
+            isProxy: isProxy,
+        });
         this.stopFlag = false;
     }
     
@@ -44,11 +54,11 @@ module.exports = class identityController {
         this.SSEUtil.SSEInitHeader();
 
         while(!(this.stopFlag)) {
-            const { idMap, status } = await this.identityService.getNicknameFromSite();
+            const { identityMap, status } = await this.identityService.getNicknameFromSite();
 
             if(status.restPage <= 0 || status.position <= 0) this.stopFlag = true;
             
-            const data = Array.from(idMap).sort();
+            const data = Array.from(identityMap).sort();
             
             this.SSEUtil.SSESendEvent('fixed-nick', data);
             this.SSEUtil.SSESendEvent('status', status);

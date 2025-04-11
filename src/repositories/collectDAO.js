@@ -30,28 +30,22 @@ module.exports = class collectDAO {
             const [rows] = await connection.execute(checkQuery, [identityCode, galleryCODE]);
 
             const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증
-            
+
             if(!isDuplicate) {
                 const insertQuery = `
                 INSERT INTO ${tableName} (galleryCODE, postNum, identityCode)
                 VALUES(?, ?, ?)`; 
                 
-                const updateQuery = `
-                UPDATE ${tableName} SET postNum = ?
-                WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
-
-                if(rows.length === 0) {
+                if(rows.length < 2) {
                     await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]); 
                 } else {
-                    for(let v of rows) {
-                        if(rows.length < 2) { // 요소가 2개 미만
-                            await connection.execute(insertQuery, [galleryCODE, postNum, identityCode]);
-                            break; 
-                        }
-                        else if(v.postNum < postNum) { // 번호가 낮은 경우
-                            await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, v.postNum]);
-                            break;
-                        }
+                    const smallestPostNum = rows[0].postNum;
+                    if(postNum > smallestPostNum) {
+                        const updateQuery = `
+                        UPDATE ${tableName} SET postNum = ?
+                        WHERE identityCode = ? AND galleryCODE = ? AND postNum = ?`;
+
+                        await connection.execute(updateQuery, [postNum, identityCode, galleryCODE, smallestPostNum]);
                     }
                 }
             }
@@ -128,7 +122,36 @@ module.exports = class collectDAO {
         connection.release();
     }
 
+    async runRaceConditionTest(testFunction) {
+        const testUser = 'explore9702';
+        const testGallery = 'grsgills';
+        const concurrentNum1 = 15; // 10을 15로 업데이트 시도
+        const concurrentNum2 = 25;
+    
+        try {
+            const results = await Promise.allSettled([
+                testFunction(true, testUser, concurrentNum1, testGallery), 
+                testFunction(true, testUser, concurrentNum2, testGallery)
+            ]);
+    
+            console.log('Concurrent operations finished.');
+            results.forEach((result, i) => {
+                if (result.status === 'rejected') {
+                    console.error(`   Error: ${result.reason}`);
+                }
+            });
+    
+        } catch (error) {
+            console.error("Test failed:", error);
+        }
+    
+    }
+
+    async test() {
+        await this.runRaceConditionTest(this.insertPostCommentNo);
+    }
 }
+
 
 /*
 async insertPostCommentNo(mode, identityCode, postNum, galleryCODE) {

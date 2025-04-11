@@ -6,7 +6,7 @@ const pool = mysql.createPool({
     user: 'root',
     password: '0000',
     database: 'dc',
-    connectionLimit: 5,
+    connectionLimit: 10,
     enableKeepAlive: true, // Keep-Alive 활성화
     keepAliveInitialDelay: 10000, // Keep-Alive 초기 지연 (ms 단위)
 });

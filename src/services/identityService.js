@@ -2,6 +2,15 @@ const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
 const collectDAO = require('../repositories/collectDAO');
 
+const SELECTORS = {
+    POST_ITEM: '.gall_list .ub-content.us-post', // 게시글 요소
+    POST_WRITER: '.gall_writer.ub-writer', // 게시글 작성자 요소
+    POST_TYPE_ATTR: 'data-type', // 게시글 타입(이미지 포함, 미포함 등)
+    POST_NO_ATTR: 'data-no', // 게시글 번호
+    POST_UID_ATTR: 'data-uid', // 게시글 작성자 UID
+    FILENAME_LINK: '.appending_file_box .appending_file li a', // 첨부파일명
+};
+
 module.exports = class collectService {
     commentApi = `https://m.dcinside.com/ajax/response-comment`;
     STATUS_FLAGS = {
@@ -44,18 +53,19 @@ module.exports = class collectService {
         'sec-ch-ua-mobile': '?1',
         'sec-ch-ua-platform': 'Android',
     };
+    collectDAO = new collectDAO();
+    identityMap = new Map();
+    postNoSet = new Set();
+    commentNoSet = new Set();
+    hasCommentPostNoSet = new Set();
+    statBit = 0;
+    curPage = 1;
 
-    constructor(SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy) {
+    constructor(
+        { SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy }
+    ) {
         this.fetchUtil = new fetchUtil(isProxy);
-        this.collectDAO = new collectDAO();
-        this.idMap = new Map();
-        this.noSet = new Set();
-        this.hasCommentPostNoSet = new Set();
-        this.noSetC = new Set();
         this.SSEUtil = SSEUtil;
-        this.curPage = 1;
-        this.statBit = 0;
-
         this.galleryType = galleryType;
         this.galleryId = galleryId;
         this.restPage = Number(limit);
@@ -63,11 +73,10 @@ module.exports = class collectService {
         this.content = content;
         this.type = type;
         this.id = id;
-
-        this.filteredPostListUrl = ``;
     }
 
     async getNicknameFromSite() {
+        //await this.collectDAO.test();
         if(this.position < 1) this.position = await this.getTotalPostCount();
         await this.getNicknameFromPostLists();
         await this.getNicknameFromCommentsInPost();
@@ -75,7 +84,7 @@ module.exports = class collectService {
         this.updateStatus();
         
         return {
-            idMap: this.idMap,
+            identityMap: this.identityMap,
             status: {
                 restPage: this.restPage, 
                 curPage: this.curPage - 1,
@@ -106,7 +115,7 @@ module.exports = class collectService {
         const html = response.data;
         const $ = cheerio.load(html);
 
-        const hasPosts = urlPage > 0 && $('.gall_list .ub-content.us-post').length; // 페이지에 게시글이 존재하는가?
+        const hasPosts = urlPage > 0 && $(SELECTORS.POST_ITEM).length; // 페이지에 게시글이 존재하는가?
         
         const isValidPage = hasPosts && this.curPage === urlPage; // 이전에 조회한 적 없거나 유효한 페이지인가?
         
@@ -115,16 +124,16 @@ module.exports = class collectService {
             this.statBit |= this.STATUS_FLAGS.INVALID_POSITION;
             this.statBit |= this.STATUS_FLAGS.INVALID_PAGE; 
         } else {
-            $('.gall_list .ub-content.us-post').each((index, element) => {
-                const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
+            $(SELECTORS.POST_ITEM).each((index, element) => {
+                const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
                 
                 if(uid) {
                     const nick = $(element).find('.gall_writer').attr('data-nick');
-                    const no = $(element).attr('data-no');
+                    const no = $(element).attr(SELECTORS.POST_NO_ATTR); 
                     const isComment = $(element).find('.gall_tit.ub-word .reply_numbox').text();
                     
-                    this.idMap.set(uid, nick);
-                    this.noSet.add({uid, no});
+                    this.identityMap.set(uid, nick);
+                    this.postNoSet.add({uid, no});
                     if(isComment) this.hasCommentPostNoSet.add(no);
                 }
             });
@@ -143,8 +152,6 @@ module.exports = class collectService {
 
             const results = await Promise.allSettled(
                 batch.map(async (no) => {
-                    await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100); // 랜덤 시간 이후 요청
-                    
                     const url = this.commentApi;
                     const data = {
                         'id': this.galleryId,
@@ -173,8 +180,8 @@ module.exports = class collectService {
                         const nick = $(element).find('a.nick').text();
                         
                         if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
-                            this.idMap.set(uid, nick);
-                            this.noSetC.add({uid, no});
+                            this.identityMap.set(uid, nick);
+                            this.commentNoSet.add({uid, no});
                         }
                     });
                 } else {
@@ -184,20 +191,21 @@ module.exports = class collectService {
             });
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 250);
             }
         }
     }
 
     async insertToID() {
         try {
-            for(let [k,v] of this.idMap) { // id 추가
+            for(let [k,v] of this.identityMap) { // id 추가
                 await this.collectDAO.insertUid(k, v, this.galleryId);
             }
-            for(let v of this.noSet) { // 게시물 번호 추가
+            // 병렬 처리가 필요하다면 위에서처럼 batch로 나눠서 하는 게 좋을 듯
+            for(let v of this.postNoSet) { 
                 await this.collectDAO.insertPostCommentNo(1, v.uid, v.no, this.galleryId);
             }
-            for(let v of this.noSetC) { // 게시물 번호 추가 (댓글)
+            for(let v of this.commentNoSet) { 
                 await this.collectDAO.insertPostCommentNo(0, v.uid, v.no, this.galleryId);
             }
         } catch (error) {

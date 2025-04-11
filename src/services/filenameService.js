@@ -1,6 +1,15 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
 
+const SELECTORS = {
+    POST_ITEM: '.gall_list .ub-content.us-post', // 게시글 요소
+    POST_WRITER: '.gall_writer.ub-writer', // 게시글 작성자 요소
+    POST_TYPE_ATTR: 'data-type', // 게시글 타입(이미지 포함, 미포함 등)
+    POST_NO_ATTR: 'data-no', // 게시글 번호
+    POST_UID_ATTR: 'data-uid', // 게시글 작성자 UID
+    FILENAME_LINK: '.appending_file_box .appending_file li a', // 첨부파일명
+};
+
 module.exports = class filenameService {
     headers = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -21,7 +30,6 @@ module.exports = class filenameService {
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': 'Windows',
     };
-
     galleryList = [
         'fancam', 
         'grsgills', 
@@ -77,12 +85,13 @@ module.exports = class filenameService {
         'ifqff7r5g77n', // 모갤주딱
         'first3159', // 모갤파딱
     ];
+    postNoSet = new Set();
     
-    constructor(SSEUtil, galleryType, galleryId, limit, startPage, isProxy) {
+    constructor({
+        SSEUtil, galleryType, galleryId, limit, startPage, isProxy
+    }) {
         this.fetchUtil = new fetchUtil(isProxy); 
-        this.postNoSet = new Set();
         this.SSEUtil = SSEUtil;
-        
         this.galleryType = galleryType;
         this.galleryId = galleryId;
         this.restPage = Number(limit);
@@ -111,21 +120,21 @@ module.exports = class filenameService {
         const html = response.data;
         const $ = cheerio.load(html);
         
-        $('.gall_list .ub-content.us-post').each((index, element) => {
-            const type = $(element).attr('data-type');
-            const uid = $(element).find('.gall_writer.ub-writer').attr('data-uid');
+        $(SELECTORS.POST_ITEM).each((index, element) => {
+            const type = $(element).attr(SELECTORS.POST_TYPE_ATTR);
+            const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
             if(
                 (type === 'icon_pic' || type === 'icon_recomimg') && 
                 uid && 
                 !( this.excludeList.some((e) => uid.includes(e)) )
             ) {
-                const no = $(element).attr('data-no');
+                const no = $(element).attr(SELECTORS.POST_NO_ATTR);
                 this.postNoSet.add(no);
             }
         });
     }
 
-    async getPostsFromSiteMob() { // mob (mob 헤더 추가 필요)
+    async getPostsFromSiteMob() { // mob (mob 헤더 추가 필요)(사용 X)
         const url = `
         https://m.dcinside.com/board/${this.galleryId}?page=${this.startPage}`;
 
@@ -144,7 +153,7 @@ module.exports = class filenameService {
 
     }
 
-    async getFilenameFromPostsT() { //des
+    async getFilenameFromPosts() { //des
         const postNoQueue = Array.from(this.postNoSet);
         let currentQueue = [...postNoQueue];
         const failedQueue = [];
@@ -158,13 +167,11 @@ module.exports = class filenameService {
             각 요청마다 요청 시작 시간이 다름.
         */
         while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            let batchSize = Math.floor(Math.random() * 5) + 25; 
             const batch = currentQueue.splice(0, batchSize);
 
             const results = await Promise.allSettled(
                 batch.map(async (no) => {
-                    await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100); // 랜덤 시간 이후 요청
-
                     const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
                     try {
                         const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
@@ -182,7 +189,7 @@ module.exports = class filenameService {
                     const { no, response } = value;
                     const html = response.data;
                     const $ = cheerio.load(html);
-                    const filename = $('.appending_file_box .appending_file').find('li').find('a').text().trim();
+                    const filename = $(SELECTORS.FILENAME_LINK).text().trim();
                     //console.log(filename);
                     if(!filename) {
                         failedQueue.push(no);
@@ -201,7 +208,7 @@ module.exports = class filenameService {
 
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 100);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 1000) + 500);
             }
         }
     }

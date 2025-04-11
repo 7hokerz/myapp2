@@ -3,16 +3,25 @@ const SSEUtil = require('../utils/SSEUtil');
 const filenameService = require('../services/filenameService');
 
 module.exports = class filenameController {
-
+    stopFlag = true;
+    SSEUtil = new SSEUtil();
     constructor() {
-        this.stopFlag = true;
-        this.SSEUtil = new SSEUtil();
+        
     }
 
     async init(req, res) {
         const { galleryType, GID: galleryId, limit, startPage, isProxy } = req.body;
         
-        this.filenameService = new filenameService(this.SSEUtil, galleryType, galleryId, limit, startPage, isProxy);
+        this.filenameService = new filenameService(
+            {
+                SSEUtil: this.SSEUtil, 
+                galleryType: galleryType, 
+                galleryId: galleryId, 
+                limit: limit, 
+                startPage: startPage, 
+                isProxy: isProxy,
+            }
+        );
         this.stopFlag = false;
     }
 
