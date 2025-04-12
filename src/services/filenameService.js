@@ -1,14 +1,6 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
-
-const SELECTORS = {
-    POST_ITEM: '.gall_list .ub-content.us-post', // 게시글 요소
-    POST_WRITER: '.gall_writer.ub-writer', // 게시글 작성자 요소
-    POST_TYPE_ATTR: 'data-type', // 게시글 타입(이미지 포함, 미포함 등)
-    POST_NO_ATTR: 'data-no', // 게시글 번호
-    POST_UID_ATTR: 'data-uid', // 게시글 작성자 UID
-    FILENAME_LINK: '.appending_file_box .appending_file li a', // 첨부파일명
-};
+const { SELECTORS, URL_PATTERNS } = require('../config/const');
 
 module.exports = class filenameService {
     headers = {
@@ -99,8 +91,8 @@ module.exports = class filenameService {
     }
 
     async getFilenameFromSite() {
-        await this.getPostsFromSite();
-        await this.getFilenameFromPosts();
+        await this._getPostsFromSite();
+        await this._getFilenameFromPosts();
         this.postNoSet = new Set();
         this.restPage--;
         this.startPage++;
@@ -113,10 +105,9 @@ module.exports = class filenameService {
         }
     }
 
-    async getPostsFromSite() { //des
-        const url = `
-        https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.startPage}&list_num=100&search_head=0`;
-        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
+    async _getPostsFromSite() { //des
+        const response = await this.fetchUtil.axiosFetcher(
+            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', this.headers);
         const html = response.data;
         const $ = cheerio.load(html);
         
@@ -124,7 +115,7 @@ module.exports = class filenameService {
             const type = $(element).attr(SELECTORS.POST_TYPE_ATTR);
             const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
             if(
-                (type === 'icon_pic' || type === 'icon_recomimg') && 
+                (type === SELECTORS.POST_TYPE_IMG || type === SELECTORS.POST_TYPE_REC_IMG) && 
                 uid && 
                 !( this.excludeList.some((e) => uid.includes(e)) )
             ) {
@@ -133,6 +124,68 @@ module.exports = class filenameService {
             }
         });
     }
+
+    async _getFilenameFromPosts() { //des
+        const postNoQueue = Array.from(this.postNoSet);
+        let currentQueue = [...postNoQueue];
+        
+        /*  map 함수 = 순차(반복문)
+            하지만 안에는 익명 async 함수이므로 함수 내부의 로직은 await 키워드에 따라 순차 진행하지만
+            Promise 객체 즉시 반환 후 다음 작업 진행
+            map 함수는 이러한 Promise 객체를 모아둔 배열을 생성하고 
+            allSettled 함수는 각 Promise 객체의 결과를 기다렸다가 results 배열에 최종 저장.
+            따라서 아래 함수 자체는 동시에 실행되지만 랜덤 시간 이후에 요청이 발생하므로
+            각 요청마다 요청 시작 시간이 다름.
+        */
+        while(currentQueue.length > 0) {
+            let batchSize = Math.floor(Math.random() * 5) + 25; 
+            const batch = currentQueue.splice(0, batchSize);
+
+            const results = await Promise.allSettled(
+                batch.map(async (no) => {
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(
+                            URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no), 'GET', this.headers);
+                        return { no, response: response };
+                    } catch (error) {
+                        return { no, reason: error };
+                    }
+                })
+            );
+
+            results.forEach(result => {
+                this._processPostResult(result, currentQueue); // 결과 처리 로직 분리
+            });
+
+            if (currentQueue.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 1000) + 1000);
+            }
+        }
+    }
+
+    _processPostResult(result, currentQueue) {
+        const { status, value, reason } = result;
+                
+        if(status === "fulfilled") {
+            const { no, response } = value;
+            const html = response.data;
+            const $ = cheerio.load(html);
+            const filename = $(SELECTORS.FILENAME_LINK).text().trim();
+            //console.log(filename, no);
+            if(!filename) {
+                currentQueue.push(no);
+            } else {
+                if (this.galleryList.some((e) => filename.includes(e))) {
+                    this.SSEUtil.SSESendEvent('post', { filename: filename, no: no });
+                    console.log(`[Found] ${filename} (Post ${no})`);
+                }
+            }
+            this.SSEUtil.SSESendEvent('no', { no: no, });
+        } else {
+            currentQueue.push(no);
+            console.log(reason, no);
+        }
+    }  
 
     async getPostsFromSiteMob() { // mob (mob 헤더 추가 필요)(사용 X)
         const url = `
@@ -151,66 +204,6 @@ module.exports = class filenameService {
             }
         });
 
-    }
-
-    async getFilenameFromPosts() { //des
-        const postNoQueue = Array.from(this.postNoSet);
-        let currentQueue = [...postNoQueue];
-        const failedQueue = [];
-        
-        /*  map 함수 = 순차(반복문)
-            하지만 안에는 익명 async 함수이므로 함수 내부의 로직은 await 키워드에 따라 순차 진행하지만
-            Promise 객체 즉시 반환 후 다음 작업 진행
-            map 함수는 이러한 Promise 객체를 모아둔 배열을 생성하고 
-            allSettled 함수는 각 Promise 객체의 결과를 기다렸다가 results 배열에 최종 저장.
-            따라서 아래 함수 자체는 동시에 실행되지만 랜덤 시간 이후에 요청이 발생하므로
-            각 요청마다 요청 시작 시간이 다름.
-        */
-        while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 25; 
-            const batch = currentQueue.splice(0, batchSize);
-
-            const results = await Promise.allSettled(
-                batch.map(async (no) => {
-                    const url = `https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.galleryId}&no=${no}`;
-                    try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
-                        return { no, response: response };
-                    } catch (error) {
-                        return { no, reason: error };
-                    }
-                })
-            );
-
-            results.forEach(result => {
-                const { status, value, reason } = result;
-                
-                if(status === "fulfilled") {
-                    const { no, response } = value;
-                    const html = response.data;
-                    const $ = cheerio.load(html);
-                    const filename = $(SELECTORS.FILENAME_LINK).text().trim();
-                    //console.log(filename);
-                    if(!filename) {
-                        failedQueue.push(no);
-                    } else {
-                        if (this.galleryList.some((e) => filename.includes(e))) {
-                            this.SSEUtil.SSESendEvent('post', { filename: filename, no: no });
-                            console.log(`[Found] ${filename} (Post ${no})`);
-                        }
-                    }
-                    this.SSEUtil.SSESendEvent('no', { no: no, });
-                } else {
-                    failedQueue.push(no);
-                    console.log(reason, no);
-                }
-            });
-
-            // 배치 처리 후 딜레이
-            if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 1000) + 500);
-            }
-        }
     }
 }
 

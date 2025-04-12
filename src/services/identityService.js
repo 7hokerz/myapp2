@@ -1,23 +1,10 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
 const collectDAO = require('../repositories/collectDAO');
+const { SELECTORS, STATUS_FLAGS, URL_PATTERNS } = require('../config/const');
 
-const SELECTORS = {
-    POST_ITEM: '.gall_list .ub-content.us-post', // 게시글 요소
-    POST_WRITER: '.gall_writer.ub-writer', // 게시글 작성자 요소
-    POST_TYPE_ATTR: 'data-type', // 게시글 타입(이미지 포함, 미포함 등)
-    POST_NO_ATTR: 'data-no', // 게시글 번호
-    POST_UID_ATTR: 'data-uid', // 게시글 작성자 UID
-    FILENAME_LINK: '.appending_file_box .appending_file li a', // 첨부파일명
-};
 
 module.exports = class collectService {
-    commentApi = `https://m.dcinside.com/ajax/response-comment`;
-    STATUS_FLAGS = {
-        INVALID_PAGE: 1 << 0,
-        INVALID_POSITION: 1 << 1,
-        NO_MORE_POSTS: 1 << 2,
-    };
     headers_des = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
@@ -94,20 +81,18 @@ module.exports = class collectService {
     }
 
     async getTotalPostCount() { // mob
-        const url = `https://m.dcinside.com/board/${this.galleryId}`;
-        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_mob, 1);
+        const response = await this.fetchUtil.axiosFetcher(URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', this.headers_mob, 1);
         const html = response.data;
         const $ = cheerio.load(html);
 
-        const tot = $('span.count').text().replace(/[^0-9]/g, "");
+        const tot = $(SELECTORS.POST_COUNT).text().replace(/[^0-9]/g, "");
 
         return tot;
     }
     
     async getNicknameFromPostLists() { //des
-        const url = `
-        https://gall.dcinside.com/${this.galleryType}board/lists/?id=${this.galleryId}&page=${this.curPage}&search_pos=${-this.position}&s_type=${this.type}&s_keyword=${this.content}`;
-        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
+        const response = await this.fetchUtil.axiosFetcher(
+            URL_PATTERNS.POST_SEARCH_DES(this.galleryType, this.galleryId, this.curPage, this.position, this.type, this.content), 'GET', this.headers_des);
         
         const resurl = new URL(response.request.res.responseUrl);
         const urlPage = Number(resurl.searchParams.get('page'));
@@ -120,31 +105,30 @@ module.exports = class collectService {
         const isValidPage = hasPosts && this.curPage === urlPage; // 이전에 조회한 적 없거나 유효한 페이지인가?
         
         if (!isValidPage) {
-            this.statBit |= hasPosts ? 0 : this.STATUS_FLAGS.NO_MORE_POSTS;
-            this.statBit |= this.STATUS_FLAGS.INVALID_POSITION;
-            this.statBit |= this.STATUS_FLAGS.INVALID_PAGE; 
+            this.statBit |= hasPosts ? 0 : STATUS_FLAGS.NO_MORE_POSTS;
+            this.statBit |= STATUS_FLAGS.INVALID_POSITION;
+            this.statBit |= STATUS_FLAGS.INVALID_PAGE; 
         } else {
             $(SELECTORS.POST_ITEM).each((index, element) => {
                 const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
                 
                 if(uid) {
-                    const nick = $(element).find('.gall_writer').attr('data-nick');
+                    const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
                     const no = $(element).attr(SELECTORS.POST_NO_ATTR); 
-                    const isComment = $(element).find('.gall_tit.ub-word .reply_numbox').text();
+                    const isComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
                     
                     this.identityMap.set(uid, nick);
                     this.postNoSet.add({uid, no});
                     if(isComment) this.hasCommentPostNoSet.add(no);
                 }
             });
-            this.statBit |= this.STATUS_FLAGS.NO_MORE_POSTS; // restPage
+            this.statBit |= STATUS_FLAGS.NO_MORE_POSTS; // restPage
         }
     }
 
     async getNicknameFromCommentsInPost() { //mob
         const postNoQueue = Array.from(this.hasCommentPostNoSet);
         let currentQueue = [...postNoQueue];
-        const failedQueue = [];
 
         while(currentQueue.length > 0) {
             let batchSize = Math.floor(Math.random() * 5) + 20; 
@@ -152,13 +136,13 @@ module.exports = class collectService {
 
             const results = await Promise.allSettled(
                 batch.map(async (no) => {
-                    const url = this.commentApi;
+                    const url = URL_PATTERNS.COMMENT_API();
                     const data = {
                         'id': this.galleryId,
                         'no': no,
                         'cpage': 1,
                     };
-                    this.headers_mob['Referer'] = `https://m.dcinside.com/board/${this.galleryId}/${no}`;
+                    this.headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
                     try {
                         const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 1, data);
                         return { no, response: response };
@@ -169,30 +153,34 @@ module.exports = class collectService {
             );
 
             results.forEach(result => {
-                const { status, value, reason } = result;
-
-                if(status === "fulfilled") {
-                    const { no, response } = value;
-                    const html = response.data;
-                    const $ = cheerio.load(html);
-                    $('.all-comment-lst li').each((index, element) => {
-                        const uid = $(element).find('a .blockCommentId').attr('data-info');
-                        const nick = $(element).find('a.nick').text();
-                        
-                        if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
-                            this.identityMap.set(uid, nick);
-                            this.commentNoSet.add({uid, no});
-                        }
-                    });
-                } else {
-                    failedQueue.push(no);
-                    console.log(reason, no);
-                }
+                this._processCommentResult(result, currentQueue);
             });
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 250);
             }
+        }
+    }
+
+    async _processCommentResult(result, currentQueue) {
+        const { status, value, reason } = result;
+
+        if(status === "fulfilled") {
+            const { no, response } = value;
+            const html = response.data;
+            const $ = cheerio.load(html);
+            $(SELECTORS.COMMENT_ITEM).each((index, element) => {
+                const uid = $(element).find(SELECTORS.COMMENT_UID_ITEM).attr(SELECTORS.COMMENT_UID_ATTR);
+                const nick = $(element).find(SELECTORS.COMMENT_NICK_ATTR).text();
+                
+                if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
+                    this.identityMap.set(uid, nick);
+                    this.commentNoSet.add({uid, no});
+                }
+            });
+        } else {
+            currentQueue.push(no);
+            console.log(reason, no);
         }
     }
 
@@ -252,11 +240,11 @@ module.exports = class collectService {
     }
 
     updateStatus() {
-        this.restPage = (this.statBit & this.STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
+        this.restPage = (this.statBit & STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
 
-        this.position = (this.statBit & this.STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position;
+        this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position;
 
-        this.curPage = (this.statBit & this.STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
+        this.curPage = (this.statBit & STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
 
         this.statBit = 0;
     }
