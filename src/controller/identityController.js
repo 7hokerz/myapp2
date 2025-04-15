@@ -54,13 +54,11 @@ module.exports = class identityController {
         this.SSEUtil.SSEInitHeader();
 
         while(!(this.stopFlag)) {
-            const { identityMap, status } = await this.identityService.getNicknameFromSite();
+            const { newIdentityCodes, status } = await this.identityService.getNicknameFromSite();
 
             if(status.restPage <= 0 || status.position <= 0) this.stopFlag = true;
             
-            const data = Array.from(identityMap).sort();
-            
-            this.SSEUtil.SSESendEvent('fixed-nick', data);
+            this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
             this.SSEUtil.SSESendEvent('status', status);
         }
         this.SSEUtil.SSESendEvent('complete', '');

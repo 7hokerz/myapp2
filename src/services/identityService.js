@@ -42,6 +42,7 @@ module.exports = class collectService {
     };
     collectDAO = new collectDAO();
     identityMap = new Map();
+    newIdentityMap = new Map();
     postNoSet = new Set();
     commentNoSet = new Set();
     hasCommentPostNoSet = new Set();
@@ -67,11 +68,15 @@ module.exports = class collectService {
         if(this.position < 1) this.position = await this.getTotalPostCount();
         await this.getNicknameFromPostLists();
         await this.getNicknameFromCommentsInPost();
-        this.hasCommentPostNoSet = new Set();
         this.updateStatus();
+
+        const newIdentityCodes = Array.from(this.newIdentityMap);
+
+        this.newIdentityMap = new Map();
+        this.hasCommentPostNoSet = new Set();
         
         return {
-            identityMap: this.identityMap,
+            newIdentityCodes: newIdentityCodes,
             status: {
                 restPage: this.restPage, 
                 curPage: this.curPage - 1,
@@ -115,10 +120,16 @@ module.exports = class collectService {
                 if(uid) {
                     const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
                     const no = $(element).attr(SELECTORS.POST_NO_ATTR); 
-                    const isComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
                     
-                    this.identityMap.set(uid, nick);
-                    this.postNoSet.add({uid, no});
+                    if(nick === 'ㅇㅇ') {
+                        if(!(this.identityMap.has(uid))) {
+                            this.identityMap.set(uid, nick);
+                            this.newIdentityMap.set(uid, nick);
+                        }
+                        this.postNoSet.add({uid, no});
+                    }
+                    const isComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
+
                     if(isComment) this.hasCommentPostNoSet.add(no);
                 }
             });
@@ -173,8 +184,11 @@ module.exports = class collectService {
                 const uid = $(element).find(SELECTORS.COMMENT_UID_ITEM).attr(SELECTORS.COMMENT_UID_ATTR);
                 const nick = $(element).find(SELECTORS.COMMENT_NICK_ATTR).text();
                 
-                if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
-                    this.identityMap.set(uid, nick);
+                if(uid && nick === 'ㅇㅇ') { // 닉네임이 ㅇㅇ
+                    if(!(this.identityMap.has(uid))) {
+                        this.identityMap.set(uid, nick);
+                        this.newIdentityMap.set(uid, nick);
+                    }
                     this.commentNoSet.add({uid, no});
                 }
             });
@@ -217,7 +231,7 @@ module.exports = class collectService {
         for(let e of data) {
             if(this.stopFlag) break;
             try {
-                const url = `https://gallog.dcinside.com/${e.identityCode}`;
+                const url = URL_PATTERNS.USER_GALLOG_MAIN(e.identityCode);
                 const response = this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
 
                 console.log(e.identityCode, response.status);
@@ -235,14 +249,10 @@ module.exports = class collectService {
         }
     }
 
-    async compareUidToRank() { // 갤랭과 비교
-
-    }
-
     updateStatus() {
         this.restPage = (this.statBit & STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
 
-        this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position;
+        this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position; 
 
         this.curPage = (this.statBit & STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
 
@@ -250,6 +260,7 @@ module.exports = class collectService {
     }
 }
 
+// 만들어볼 것? 해당 유저의 탈퇴 유무를 언제 점검하는지? 
 
 /*
 async getNicknameFromCommentsInPost() { // mob

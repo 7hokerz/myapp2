@@ -1,9 +1,10 @@
 const cheerio = require('cheerio');
-//const puppeteer = require('puppeteer');
 const fetchUtil = require('../utils/fetchUtil');
+const { SELECTORS, URL_PATTERNS } = require('../config/const');
 
 module.exports = class deleteMyPostsService {
-    
+    noSet = new Set();
+
     constructor(SSEUtil, id, type, cno, page, limit, PHPSESSID) { 
         this.fetchUtil = new fetchUtil(false);
         this.SSEUtil = SSEUtil;
@@ -12,25 +13,24 @@ module.exports = class deleteMyPostsService {
         this.cno = cno;
         this.page = page;
         this.restPage = Number(limit);
-        this.noSet = new Set();
         this.PHPSESSID = PHPSESSID;
         this.headers = {
             'Accept': 'application/json',
-            'Referer' : `http://gallog.dcinside.com//${this.id}/${this.type}/index?cno=${this.cno}`,
+            'Referer' : `http://gallog.dcinside.com/${this.id}/${this.type}/index?cno=${this.cno}`,
             'X-Requested-With': 'XMLHttpRequest',
             'Cookie': `PHPSESSID=${this.PHPSESSID};`// PHPSESSID가 있어야 권한 획득
         }
-        this.deleteUrl = `https://gallog.dcinside.com/${this.id}/ajax/log_list_ajax/delete`;
+        this.deleteUrl = URL_PATTERNS.DELETE_USER_POST_COMMENT_API(this.id);
     }
 
     async deletePostsOrComments() {
-        const url = `https://gallog.dcinside.com/${this.id}/${this.type}/index?cno=${this.cno}&p=${this.page}`;
+        const url = URL_PATTERNS.USER_POST_COMMENT_LIST(this.id, this.type, this.cno, this.page);
         const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
 
         const html = response.data;
         const $ = cheerio.load(html);
 
-        $('.cont_box .cont_listbox li').each((index, element) => {
+        $(SELECTORS.USER_POST_COMMENT_ITEM).each((index, element) => {
             const no = $(element).attr('data-no');
             this.noSet.add(no);
         });

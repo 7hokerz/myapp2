@@ -138,6 +138,8 @@
 
         this.inputStatus(true);
 
+        this.idsDiv.innerHTML = '';
+
         try {
             const response = await fetch(`/api/client-input/?mode=${this.mode.value}&type=${this.type.value}`, {
                 method: 'POST',
@@ -172,10 +174,15 @@
             });
 
             eventSource.addEventListener('fixed-nick', (event) => { // 고닉 데이터를 테이블에 추가
-                const data = JSON.parse(event.data); 
-                this.idsDiv.innerHTML = data.map(id => `
-                    <span><b><a href='https://gallog.dcinside.com/${id[0]}' target="_blank">${id[0]}</a>(${id[1]})</b></span>
-                `).join('');
+                const newIdentityCodes = JSON.parse(event.data); 
+                const fragment = document.createDocumentFragment();
+
+                newIdentityCodes.forEach(id => {
+                    const span = document.createElement('span');
+                    span.innerHTML = `<b><a href='https://gallog.dcinside.com/${id[0]}' target="_blank">${id[0]}</a>(${id[1]})</b> `;
+                    fragment.appendChild(span);
+                });
+                this.idsDiv.appendChild(fragment);
             });
 
             eventSource.addEventListener('complete', (event) => {

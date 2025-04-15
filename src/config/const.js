@@ -14,29 +14,36 @@ const SELECTORS = Object.freeze({
     COMMENT_UID_ITEM: 'a .blockCommentId', // 댓글 작성자 요소
     COMMENT_UID_ATTR: 'data-info', // 댓글 작성자 UID
     COMMENT_NICK_ATTR: 'a.nick', // 댓글 작성자 NICK
+    USER_POST_COMMENT_ITEM: '.cont_box .cont_listbox li',
 });
 
 const STATUS_FLAGS = Object.freeze({
-    INVALID_PAGE: 1 << 0,
-    INVALID_POSITION: 1 << 1,
-    NO_MORE_POSTS: 1 << 2,
+    INVALID_PAGE: 1 << 0, // 포지션이 초기화되어 첫 페이지부터 시작
+    INVALID_POSITION: 1 << 1, // 해당 포지션의 게시글을 모두 확인함
+    NO_MORE_POSTS: 1 << 2, // 해당 페이지에 게시글이 없음
 });
 
 const URL_PATTERNS = Object.freeze({
-    COMMENT_API: () => `https://m.dcinside.com/ajax/response-comment`,
+    COMMENT_API: () => `https://m.dcinside.com/ajax/response-comment`, // 댓글 목록 불러오기 API
 
-    GALLERY_MOB: (galleryId) => `https://m.dcinside.com/board/${galleryId}`,
+    GALLERY_MOB: (galleryId) => `https://m.dcinside.com/board/${galleryId}`, // 모바일 버전 갤러리 접속
 
-    POST_SEARCH_DES: (galleryType, galleryId, curPage, position, type, content) => 
+    POST_SEARCH_DES: (galleryType, galleryId, curPage, position, type, content) => // 검색어로 특정 게시글 검색
         `https://gall.dcinside.com/${galleryType}board/lists/?id=${galleryId}&page=${curPage}&search_pos=${-position}&s_type=${type}&s_keyword=${content}`,
 
-    POST_LIST_DES: (galleryType, galleryId, startPage) => 
+    POST_LIST_DES: (galleryType, galleryId, startPage) => // 전체 게시글 목록
         `https://gall.dcinside.com/${galleryType}board/lists/?id=${galleryId}&page=${startPage}&list_num=100&search_head=0`,
 
-    POST_MOB: (galleryId, no) => `https://m.dcinside.com/board/${galleryId}/${no}`,
+    POST_MOB: (galleryId, no) => `https://m.dcinside.com/board/${galleryId}/${no}`, // 특정 게시글 조회
 
-    POST_DES: (galleryType, galleryId, no) => `https://gall.dcinside.com/${galleryType}board/view/?id=${galleryId}&no=${no}`,
-});
+    POST_DES: (galleryType, galleryId, no) => `https://gall.dcinside.com/${galleryType}board/view/?id=${galleryId}&no=${no}`, // 특정 게시글 조회
+
+    DELETE_USER_POST_COMMENT_API: (uid) => `https://gallog.dcinside.com/${uid}/ajax/log_list_ajax/delete`, // 특정 유저의 게시글 OR 댓글 삭제 API
+
+    USER_POST_COMMENT_LIST: (uid, type, cno, page) => `https://gallog.dcinside.com/${uid}/${type}/index?cno=${cno}&p=${page}`, // 특정 유저 게시글 OR 댓글 목록 조회
+
+    USER_GALLOG_MAIN: (uid) => `https://gallog.dcinside.com/${uid}`, // 갤로그 메인
+}); 
 
 
 module.exports = {
