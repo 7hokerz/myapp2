@@ -34,4 +34,19 @@
     <p> pos (URL의 search_pos 값(양수)): 
         <input type="number" id="pos" step="10000" value="0">
     </p>
+
+    <p> 단위:
+        <select id="unit-type">
+            <option value="page" 
+                <%= unitType === 'page' ? 'selected' : '' %>
+            >
+                페이지
+            </option>
+            <option value="position" 
+                <%= unitType === 'position' ? 'selected' : '' %>
+            >
+                포지션
+            </option>
+        </select>
+    </p>
 <% } %>

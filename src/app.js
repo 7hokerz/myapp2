@@ -16,16 +16,19 @@ app.get('/', (req, res) => {
     const defaultModeTypeMapping = {
         'identity': 'search_name',
         'delete-post': 'posts',
+        'unit-type': 'page',
     };
 
-    let { mode, type } = req.query;
+    let { mode, type, unitType } = req.query;
 
     mode = mode || 'identity';
     type = type || defaultModeTypeMapping[mode] || '';
+    unitType = unitType || defaultModeTypeMapping[mode] || '';
 
     res.render('index', {
         mode,
         type,
+        unitType,
     });
 });
 

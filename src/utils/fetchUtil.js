@@ -60,7 +60,7 @@ module.exports = class fetchUtil {
         this.isProxy = isProxy;
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 5000, baseBackoff = 100) {
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 7500, baseBackoff = 100) {
         let socksProxyAgent = null;
 
         for (let attempt = 1; attempt <= 5; attempt++) {
@@ -76,20 +76,10 @@ module.exports = class fetchUtil {
                 headers: headers,
                 proxy: false,
                 timeout,
+                validateStatus: function (status) {
+                    return ((status >= 200 && status < 300) || status === 403 || status === 404);
+                }
             });
-            
-            axiosInstance.interceptors.response.use((response) => { // 성공 응답 후 프록시 에이전트 종료
-                if (response.config.httpAgent && typeof response.config.httpAgent.destroy === 'function') {
-                    response.config.httpAgent.destroy();
-                }
-                return response;
-                }, (error) => { // 에러 응답 시에도 프록시 에이전트 종료
-                    if (error.config && error.config.httpAgent && typeof error.config.httpAgent.destroy === 'function') {
-                        error.config.httpAgent.destroy();
-                    }
-                    return Promise.reject(error);
-                }
-            );
 
             try {
                 const requestConfig = {
@@ -102,11 +92,10 @@ module.exports = class fetchUtil {
                 } else {
                     if (data) requestConfig.data = data;
                 }
-
                 const response = await axiosInstance(requestConfig);
                 return response;
             } catch (error) {
-                if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.message, data);
+                if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.code, error.message, url);
                 await new Promise(resolve => setTimeout((resolve), baseBackoff * 2 ** attempt)); // 지수 백오프
             }
         }
@@ -116,7 +105,7 @@ module.exports = class fetchUtil {
     getRandomSocksProxy() {
         const socksProxy = socksproxyList[Math.floor(Math.random() * socksproxyList.length)];
         const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
-        const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl);
+        const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl); // 특정 요소 설정으로 socket hang up 문제를 해결할 방안일지??
         
         return socksProxyAgent;
     }

@@ -19,6 +19,7 @@ module.exports = class identityController {
             UID: id, 
             pos, 
             limit,
+            unitType,
             isProxy, 
         } = req.body;
         
@@ -44,6 +45,7 @@ module.exports = class identityController {
             content: content, 
             type: type, 
             id: id, 
+            unitType: unitType,
             isProxy: isProxy,
         });
         this.stopFlag = false;
@@ -58,13 +60,15 @@ module.exports = class identityController {
 
             if(status.restPage <= 0 || status.position <= 0) this.stopFlag = true;
             
-            this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
+            if(newIdentityCodes && newIdentityCodes.length > 0) this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
             this.SSEUtil.SSESendEvent('status', status);
         }
+        console.log('식별코드 수집 완료.');
+        
+        await this.identityService.insertToID();
+
         this.SSEUtil.SSESendEvent('complete', '');
         this.SSEUtil.SSEendEvent();
-
-        await this.identityService.insertToID();
 
         console.log('식별코드 삽입 작업 완료.');
     }

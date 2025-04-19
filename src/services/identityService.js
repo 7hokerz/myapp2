@@ -41,16 +41,16 @@ module.exports = class collectService {
         'sec-ch-ua-platform': 'Android',
     };
     collectDAO = new collectDAO();
-    identityMap = new Map();
-    newIdentityMap = new Map();
-    postNoSet = new Set();
-    commentNoSet = new Set();
-    hasCommentPostNoSet = new Set();
+    identityMap = new Map(); // UID
+    newIdentityMap = new Map(); // UID
+    postNoSet = new Set(); // 게시글 번호 
+    commentNoSet = new Set(); // 댓글 (게시글 번호)
+    hasCommentPostNoSet = new Set(); // 댓글을 가지고 있는 게시글 번호
     statBit = 0;
     curPage = 1;
 
     constructor(
-        { SSEUtil, galleryType, galleryId, limit, pos, content, type, id, isProxy }
+        { SSEUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, isProxy }
     ) {
         this.fetchUtil = new fetchUtil(isProxy);
         this.SSEUtil = SSEUtil;
@@ -60,20 +60,21 @@ module.exports = class collectService {
         this.position = Number(pos);
         this.content = content;
         this.type = type;
+        this.unitType = unitType;
         this.id = id;
     }
 
     async getNicknameFromSite() {
         //await this.collectDAO.test();
-        if(this.position < 1) this.position = await this.getTotalPostCount();
-        await this.getNicknameFromPostLists();
-        await this.getNicknameFromCommentsInPost();
+        if(this.position < 1) this.position = await this.getTotalPostCount(); // 총 게시글 수 조회
+        await this.getNicknameFromPostLists(); // 페이지에서 게시글 목록 조회
+        await this.getNicknameFromCommentsInPost(); // 게시글 별 댓글 조회
         this.updateStatus();
 
         const newIdentityCodes = Array.from(this.newIdentityMap);
 
-        this.newIdentityMap = new Map();
-        this.hasCommentPostNoSet = new Set();
+        this.newIdentityMap.clear();
+        this.hasCommentPostNoSet.clear();
         
         return {
             newIdentityCodes: newIdentityCodes,
@@ -110,9 +111,9 @@ module.exports = class collectService {
         const isValidPage = hasPosts && this.curPage === urlPage; // 이전에 조회한 적 없거나 유효한 페이지인가?
         
         if (!isValidPage) {
-            this.statBit |= hasPosts ? 0 : STATUS_FLAGS.NO_MORE_POSTS;
+            this.statBit |= (hasPosts && this.unitType === 'page') ? 0 : STATUS_FLAGS.NO_MORE_POSTS;
             this.statBit |= STATUS_FLAGS.INVALID_POSITION;
-            this.statBit |= STATUS_FLAGS.INVALID_PAGE; 
+            this.statBit |= STATUS_FLAGS.INVALID_PAGE;
         } else {
             $(SELECTORS.POST_ITEM).each((index, element) => {
                 const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
@@ -128,12 +129,13 @@ module.exports = class collectService {
                         }
                         this.postNoSet.add({uid, no});
                     }
-                    const isComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
+                    const hasComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
 
-                    if(isComment) this.hasCommentPostNoSet.add(no);
+                    if(hasComment) this.hasCommentPostNoSet.add(no);
                 }
             });
-            this.statBit |= STATUS_FLAGS.NO_MORE_POSTS; // restPage
+            
+            if(this.unitType === 'page') this.statBit |= STATUS_FLAGS.NO_MORE_POSTS; // restPage
         }
     }
 
@@ -168,7 +170,7 @@ module.exports = class collectService {
             });
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 250);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 300);
             }
         }
     }
@@ -193,25 +195,85 @@ module.exports = class collectService {
                 }
             });
         } else {
-            currentQueue.push(no);
+            //currentQueue.push(no);
             console.log(reason, no);
         }
     }
 
     async insertToID() {
         try {
-            for(let [k,v] of this.identityMap) { // id 추가
-                await this.collectDAO.insertUid(k, v, this.galleryId);
+            //await this.checkUIDisValid(); // UID가 탈퇴했는지 확인
+
+            for(let [uid, nick] of this.identityMap) { // id 추가
+                await this.collectDAO.insertUid(uid, nick, this.galleryId);
             }
-            // 병렬 처리가 필요하다면 위에서처럼 batch로 나눠서 하는 게 좋을 듯
             for(let v of this.postNoSet) { 
-                await this.collectDAO.insertPostCommentNo(1, v.uid, v.no, this.galleryId);
+                if(this.identityMap.has(v.uid)) await this.collectDAO.insertPostCommentNo(1, v.uid, v.no, this.galleryId);
             }
             for(let v of this.commentNoSet) { 
-                await this.collectDAO.insertPostCommentNo(0, v.uid, v.no, this.galleryId);
+                if(this.identityMap.has(v.uid)) await this.collectDAO.insertPostCommentNo(0, v.uid, v.no, this.galleryId);
             }
         } catch (error) {
             console.log(error);
+        } finally {
+            this.identityMap.clear();
+            this.postNoSet.clear();
+            this.commentNoSet.clear();
+        }
+    }
+
+    async checkUIDisValid() { // mob
+        const currentQueue = Array.from(this.identityMap.keys());
+
+        while(currentQueue.length > 0) {
+            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            const batch = currentQueue.splice(0, batchSize);
+
+            const results = await Promise.allSettled(
+                batch.map(async (uid) => {
+                    const url = URL_PATTERNS.USER_GALLOG_MAIN(uid);
+                    
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
+                        return { uid, response: response };
+                    } catch (error) {
+                        return { uid, reason: error };
+                    }
+                })
+            );
+
+            results.forEach(result => {
+                const { status, value, reason } = result;
+                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
+                if(status === "fulfilled"){
+                    const { uid, response } = value;
+                    
+                    if(response && response.status && response.status === 404) {
+                        this.identityMap.delete(uid);
+                        //console.log(`${uid}는 존재하지 않음.`);
+                    }
+                } else {
+                    //currentQueue.push(uid);
+                    console.log(reason, uid);
+                }
+            });
+
+            if (currentQueue.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
+            }
+        }
+    }
+
+    remainHighNos() {
+        const grouped = new Map();
+
+        for(const item of this.postNoSet) {
+            const uid = item.uid;
+            if(!grouped.has(uid)) {
+
+            } else {
+
+            }
         }
     }
 
@@ -261,6 +323,7 @@ module.exports = class collectService {
 }
 
 // 만들어볼 것? 해당 유저의 탈퇴 유무를 언제 점검하는지? 
+// 페이지 대신 포지션별로 조회하는 기능
 
 /*
 async getNicknameFromCommentsInPost() { // mob

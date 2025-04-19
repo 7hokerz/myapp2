@@ -22,11 +22,14 @@ module.exports = class collectDAO {
         try {
             connection = await pool.getConnection();
             await connection.beginTransaction();
+
+            //await connection.execute(`SET TRANSACTION ISOLATION LEVEL READ COMMITTEND`);
+
             const checkQuery = `
             SELECT postNum FROM ${tableName} 
             WHERE identityCode = ? AND galleryCODE = ?
             ORDER BY postNum ASC`; // 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
-
+            //FOR UPDATE`;
             const [rows] = await connection.execute(checkQuery, [identityCode, galleryCODE]);
 
             const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증

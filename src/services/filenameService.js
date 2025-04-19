@@ -4,6 +4,7 @@ const { SELECTORS, URL_PATTERNS } = require('../config/const');
 
 const galleryList = [
     'fancam', 
+    'savecam',
     'grsgills', 
     'girl',
     'group',
@@ -96,7 +97,7 @@ module.exports = class filenameService {
     async getFilenameFromSite() {
         await this._getPostsFromSite();
         await this._getFilenameFromPosts();
-        this.postNoSet = new Set();
+        this.postNoSet.clear();
         this.restPage--;
         this.startPage++;
         

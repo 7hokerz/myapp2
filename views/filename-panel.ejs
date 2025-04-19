@@ -36,6 +36,7 @@
                     document.getElementById('galleryId').value = savedValue.GID || '';
                     document.getElementById('limit').value = savedValue.limit || '';
                     document.getElementById('start-page').value = savedValue.startPage || 1;
+                    document.getElementById('is-proxy').checked = savedValue.isProxy || false;
                 }
             };
 
@@ -63,6 +64,7 @@
                     GID: this.GID, 
                     limit: this.limit,
                     startPage: this.startPage,
+                    isProxy: this.isProxy.checked,
                 }));
             });
         
@@ -99,7 +101,7 @@
             this.postsTbody.innerHTML = '';
 
             try {
-                const response = await fetch(`/api/client-input/?mode=${this.mode.value}`, {
+                const response = await fetch(`/api/client-input`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

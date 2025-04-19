@@ -43,6 +43,8 @@ const URL_PATTERNS = Object.freeze({
     USER_POST_COMMENT_LIST: (uid, type, cno, page) => `https://gallog.dcinside.com/${uid}/${type}/index?cno=${cno}&p=${page}`, // 특정 유저 게시글 OR 댓글 목록 조회
 
     USER_GALLOG_MAIN: (uid) => `https://gallog.dcinside.com/${uid}`, // 갤로그 메인
+
+    USER_GALLOG_MAIN_MOB: (uid) => `https://m.dcinside.com/gallog/${uid}`, // 갤로그 메인
 }); 
 
 

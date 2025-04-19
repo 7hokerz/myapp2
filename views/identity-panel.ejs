@@ -2,9 +2,9 @@
 
 <h2>상태</h2>
 <div id="status">
-    <p> 현재 페이지: 0  </p>
-    <p> 남은 페이지: 0  </p>
+    <p> 남은 페이지(포지션): 0  </p>
     <p> 현재 위치: 0    </p>
+    <p> 현재 페이지: 0  </p>
 </div>
 
 <h2>고닉에 해당하는 ID</h2>
@@ -46,6 +46,7 @@
                 document.getElementById('pos').value = savedValue.pos || 0;
                 document.getElementById('limit').value = savedValue.limit || '';
                 document.getElementById('gallery').value = savedValue.galleryType || '';
+                document.getElementById('is-proxy').checked = savedValue.isProxy || false;
             }
         };
 
@@ -57,6 +58,7 @@
         this.stopBtn = document.getElementById('stop');
         this.mode = document.getElementById('mode');
         this.type = document.getElementById('search-type');
+        this.unitType = document.getElementById('unit-type');
         this.searchByNickBtn = document.getElementById('nick-search');
         this.searchBygalleryBtn = document.getElementById('gallery-search');
         this.deleteGarbageBtn = document.getElementById('delete-garbage');
@@ -72,6 +74,15 @@
             const url = new URL(window.location.href);
             url.searchParams.set('mode', this.mode.value);
             url.searchParams.set('type', this.type.value);
+            url.searchParams.set('unitType', this.unitType.value);
+            location.href = url.toString();
+        });
+
+        this.unitType.addEventListener('change', () => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('mode', this.mode.value);
+            url.searchParams.set('type', this.type.value);
+            url.searchParams.set('unitType', this.unitType.value);
             location.href = url.toString();
         });
 
@@ -101,6 +112,7 @@
                 pos: this.pos, 
                 limit: this.limit,
                 galleryType: this.galleryType,
+                isProxy: this.isProxy.checked,
             }));
         });
     
@@ -130,7 +142,7 @@
     async searchAccountFromSite() {
         this.getValueFromUsers();
 
-        if(!(this.GID && this.nickname && this.limit < 400)) {
+        if(!(this.GID && this.nickname && this.limit <= 1000)) {
             alert('유효한 값을 입력하세요.');
             return;
         }
@@ -141,7 +153,7 @@
         this.idsDiv.innerHTML = '';
 
         try {
-            const response = await fetch(`/api/client-input/?mode=${this.mode.value}&type=${this.type.value}`, {
+            const response = await fetch(`/api/client-input`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -150,6 +162,7 @@
                     keyword: this.keyword,
                     mode: this.mode.value,
                     type: this.type.value,
+                    unitType: this.unitType.value,
                     isProxy: this.isProxy.checked,
                     UID: this.UID, 
                     pos: this.pos, 
@@ -168,7 +181,7 @@
             eventSource.addEventListener('status', (event) => {
                 const data = JSON.parse(event.data);
                 this.statusDiv.innerHTML = `
-                <p> 남은 페이지: ${data.restPage}  </p>
+                <p> 남은 페이지(포지션): ${data.restPage}  </p>
                 <p> 현재 위치: ${data.position}     </p>
                 <p> 현재 페이지: ${data.curPage}    </p>`;
             });
