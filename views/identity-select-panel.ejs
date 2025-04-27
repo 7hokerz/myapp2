@@ -6,6 +6,11 @@
 
     <p> 검색 타입:
         <select id="search-type">
+            <option value="search_all" 
+                <%= type === 'search_all' ? 'selected' : '' %>
+            >
+                전체
+            </option>
             <option value="search_name" 
                 <%= type === 'search_name' ? 'selected' : '' %>
             >
@@ -37,14 +42,10 @@
 
     <p> 단위:
         <select id="unit-type">
-            <option value="page" 
-                <%= unitType === 'page' ? 'selected' : '' %>
-            >
+            <option value="page">
                 페이지
             </option>
-            <option value="position" 
-                <%= unitType === 'position' ? 'selected' : '' %>
-            >
+            <option value="position">
                 포지션
             </option>
         </select>

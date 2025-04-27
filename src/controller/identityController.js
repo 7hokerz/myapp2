@@ -22,7 +22,7 @@ module.exports = class identityController {
             unitType,
             isProxy, 
         } = req.body;
-        
+
         let content = null;
         switch (type) {
             case 'search_name':
@@ -30,9 +30,6 @@ module.exports = class identityController {
                 break;
             case 'search_subject_memo':
                 content = keyword;
-                break;
-            default:
-                content = nickname;
                 break;
         }
         
@@ -58,19 +55,39 @@ module.exports = class identityController {
         while(!(this.stopFlag)) {
             const { newIdentityCodes, status } = await this.identityService.getNicknameFromSite();
 
-            if(status.restPage <= 0 || status.position <= 0) this.stopFlag = true;
+            if(status.restPage < 1 || status.position < 1) this.stopFlag = true;
             
             if(newIdentityCodes && newIdentityCodes.length > 0) this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
             this.SSEUtil.SSESendEvent('status', status);
         }
         console.log('식별코드 수집 완료.');
-        
-        await this.identityService.insertToID();
+
+        if(true) {
+            await this._insertUIDs();
+        } else {
+            await this._compareUIDs();
+        }
 
         this.SSEUtil.SSESendEvent('complete', '');
         this.SSEUtil.SSEendEvent();
+    }
+
+    async _insertUIDs() {
+        await this.identityService.insertUIDs();
 
         console.log('식별코드 삽입 작업 완료.');
+    }
+
+    async _compareUIDs() {
+        const results = await this.identityService.compareUIDs();
+
+        this.SSEUtil.SSESendEvent('compare', results);
+
+        console.log('식별코드 비교 작업 완료.');
+    }
+
+    async chkPostisExist() {
+        await this.identityService.chkPostisExist();
     }
 
     stopSearch() {

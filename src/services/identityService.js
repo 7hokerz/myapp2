@@ -6,7 +6,7 @@ const { SELECTORS, STATUS_FLAGS, URL_PATTERNS } = require('../config/const');
 
 module.exports = class collectService {
     headers_des = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept': 'text/html',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
         'Accept-Language': 'ko-KR,ko;q=0.9',
         'Cache-Control': 'no-cache',
@@ -66,10 +66,17 @@ module.exports = class collectService {
 
     async getNicknameFromSite() {
         //await this.collectDAO.test();
-        if(this.position < 1) this.position = await this.getTotalPostCount(); // 총 게시글 수 조회
-        await this.getNicknameFromPostLists(); // 페이지에서 게시글 목록 조회
-        await this.getNicknameFromCommentsInPost(); // 게시글 별 댓글 조회
-        this.updateStatus();
+        if(this.type === 'search_all') {
+            this.position = 1;
+            await this._getNicknameFromPostListsAll(); // 페이지에서 게시글 목록 조회
+        } else {
+            if(this.position < 1) this.position = await this.getTotalPostCount(); // 총 게시글 수 조회
+            await this._getNicknameFromPostLists(); // 페이지에서 게시글 목록 조회
+        }
+        await this._getNicknameFromCommentsInPost(); // 게시글 별 댓글 조회
+        
+        this._updateStatus();
+        if(this.type === 'search_all') this.restPage--;
 
         const newIdentityCodes = Array.from(this.newIdentityMap);
 
@@ -96,7 +103,7 @@ module.exports = class collectService {
         return tot;
     }
     
-    async getNicknameFromPostLists() { //des
+    async _getNicknameFromPostLists() { // des
         const response = await this.fetchUtil.axiosFetcher(
             URL_PATTERNS.POST_SEARCH_DES(this.galleryType, this.galleryId, this.curPage, this.position, this.type, this.content), 'GET', this.headers_des);
         
@@ -117,10 +124,10 @@ module.exports = class collectService {
         } else {
             $(SELECTORS.POST_ITEM).each((index, element) => {
                 const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
-                
+                const no = $(element).attr(SELECTORS.POST_NO_ATTR); 
+
                 if(uid) {
                     const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
-                    const no = $(element).attr(SELECTORS.POST_NO_ATTR); 
                     
                     if(nick === 'ㅇㅇ') {
                         if(!(this.identityMap.has(uid))) {
@@ -129,17 +136,48 @@ module.exports = class collectService {
                         }
                         this.postNoSet.add({uid, no});
                     }
-                    const hasComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
-
-                    if(hasComment) this.hasCommentPostNoSet.add(no);
                 }
+                const hasComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
+
+                if(hasComment) this.hasCommentPostNoSet.add(no);
             });
             
             if(this.unitType === 'page') this.statBit |= STATUS_FLAGS.NO_MORE_POSTS; // restPage
         }
     }
 
-    async getNicknameFromCommentsInPost() { //mob
+    async _getNicknameFromPostListsAll() { // des
+        const response = await this.fetchUtil.axiosFetcher(
+            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.curPage), 'GET', this.headers);
+
+        const html = response.data;
+        const $ = cheerio.load(html);
+
+        $(SELECTORS.POST_ITEM).each((index, element) => {
+            const type = $(element).attr(SELECTORS.POST_TYPE_ATTR);
+            const uid = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_UID_ATTR);
+            const no = $(element).attr(SELECTORS.POST_NO_ATTR);
+            
+            if(type !== SELECTORS.POST_TYPE_NOTICE) { 
+                if (uid) {
+                    const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
+
+                    if(nick/* === 'ㅇㅇ'*/) {
+                        if(!(this.identityMap.has(uid))) {
+                            this.identityMap.set(uid, nick);
+                            this.newIdentityMap.set(uid, nick);
+                        }
+                        this.postNoSet.add({uid, no});
+                    }
+                }
+                const hasComment = $(element).find(SELECTORS.POST_HAS_COMMENT).text();
+
+                if(hasComment) this.hasCommentPostNoSet.add(no);
+            }
+        });
+    }
+
+    async _getNicknameFromCommentsInPost() { //mob
         const postNoQueue = Array.from(this.hasCommentPostNoSet);
         let currentQueue = [...postNoQueue];
 
@@ -157,7 +195,7 @@ module.exports = class collectService {
                     };
                     this.headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
                     try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 1, data);
+                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 1, data, 15000);
                         return { no, response: response };
                     } catch (error) {
                         return { no, reason: error };
@@ -170,7 +208,7 @@ module.exports = class collectService {
             });
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 300);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
             }
         }
     }
@@ -186,7 +224,7 @@ module.exports = class collectService {
                 const uid = $(element).find(SELECTORS.COMMENT_UID_ITEM).attr(SELECTORS.COMMENT_UID_ATTR);
                 const nick = $(element).find(SELECTORS.COMMENT_NICK_ATTR).text();
                 
-                if(uid && nick === 'ㅇㅇ') { // 닉네임이 ㅇㅇ
+                if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
                     if(!(this.identityMap.has(uid))) {
                         this.identityMap.set(uid, nick);
                         this.newIdentityMap.set(uid, nick);
@@ -200,19 +238,102 @@ module.exports = class collectService {
         }
     }
 
-    async insertToID() {
+    async insertUIDs() {
         try {
-            //await this.checkUIDisValid(); // UID가 탈퇴했는지 확인
+            let startTime = 0, endTime = 0, time = 0;
+            //await this._checkUIDisValid(); // UID가 탈퇴했는지 확인
 
             for(let [uid, nick] of this.identityMap) { // id 추가
                 await this.collectDAO.insertUid(uid, nick, this.galleryId);
             }
-            for(let v of this.postNoSet) { 
-                if(this.identityMap.has(v.uid)) await this.collectDAO.insertPostCommentNo(1, v.uid, v.no, this.galleryId);
+            const allPostItems = Array.from(this.postNoSet); // 병렬
+            const allCommentItems = Array.from(this.commentNoSet); // 병렬
+
+            const groupedByUidPost = allPostItems.reduce((acc, item) => {
+                const { uid } = item;
+                if (!acc[uid]) {
+                    acc[uid] = []; // 해당 UID 키가 없으면 빈 배열로 초기화
+                }
+                acc[uid].push(item); // 현재 아이템을 해당 UID 배열에 추가
+                return acc;
+            }, {});
+
+            const groupedByUidComment = allCommentItems.reduce((acc, item) => {
+                const { uid, no } = item;
+                if (!acc[uid]) {
+                    acc[uid] = []; // 해당 UID 키가 없으면 빈 배열로 초기화
+                }
+                const alreadyExists = acc[uid].some(existingItem => existingItem.no === no);
+
+                if (!alreadyExists) {
+                    acc[uid].push(item);
+                }
+                return acc;
+            }, {});
+
+            const itemsToProcessPost = Object.values(groupedByUidPost).flatMap(group => {
+                // 'no' 값을 기준으로 내림차순 정렬 (큰 값이 먼저 오도록)
+                group.sort((itemA, itemB) => itemB.no - itemA.no);
+                // 정렬된 그룹에서 상위 2개 아이템만 선택 (slice는 원본 배열을 변경하지 않음)
+                return group.slice(0, 2);
+            });
+
+            const itemsToProcessComment = Object.values(groupedByUidComment).flatMap(group => {
+                // 'no' 값을 기준으로 내림차순 정렬 (큰 값이 먼저 오도록)
+                group.sort((itemA, itemB) => itemB.no - itemA.no);
+                // 정렬된 그룹에서 상위 2개 아이템만 선택 (slice는 원본 배열을 변경하지 않음)
+                return group.slice(0, 2);
+            });
+
+            const postNoQueue = [...itemsToProcessPost];
+            const commentNoQueue = [...itemsToProcessComment];
+            startTime = Date.now();
+            while(postNoQueue.length > 0) {
+                let batchSize = 20;
+                const batch = postNoQueue.splice(0, batchSize);
+
+                await Promise.allSettled(
+                    batch.map(async (item) => {
+                        const { uid, no } = item;
+                        try {
+                            await this.collectDAO.insertPostCommentNo(1, uid, no, this.galleryId);
+                            return { uid, no };
+                        } catch (error) {
+                            return console.log(error);
+                        }
+                    })
+                );
+            }/*
+            for(let item of this.postNoSet) { // 순차
+                if(this.identityMap.has(item.uid)) await this.collectDAO.insertPostCommentNo(1, item.uid, item.no, this.galleryId);
+            }*/
+            endTime = Date.now();
+            time = endTime - startTime;
+            console.log(`Concurrent operations finished in ${time} ms.`);
+
+            startTime = Date.now();
+            while(commentNoQueue.length > 0) {
+                let batchSize = 20;
+                const batch = commentNoQueue.splice(0, batchSize);
+
+                await Promise.allSettled(
+                    batch.map(async (item) => {
+                        const { uid, no } = item;
+                        try {
+                            await this.collectDAO.insertPostCommentNo(0, uid, no, this.galleryId);
+                            return { uid, no };
+                        } catch (error) {
+                            return console.log(error);
+                        }
+                    })
+                );
             }
-            for(let v of this.commentNoSet) { 
-                if(this.identityMap.has(v.uid)) await this.collectDAO.insertPostCommentNo(0, v.uid, v.no, this.galleryId);
-            }
+            /*for(let item of this.commentNoSet) { // 순차
+                if(this.identityMap.has(item.uid)) await this.collectDAO.insertPostCommentNo(0, item.uid, item.no, this.galleryId);
+            }*/
+            endTime = Date.now();
+            time = endTime - startTime;
+            console.log(`Concurrent operations finished in ${time} ms.`);
         } catch (error) {
             console.log(error);
         } finally {
@@ -222,7 +343,59 @@ module.exports = class collectService {
         }
     }
 
-    async checkUIDisValid() { // mob
+    async compareUIDs() {
+        let combinedResults = [];
+        try{
+            const uidsArray = Array.from(this.identityMap.keys());
+            const results = await this.collectDAO.compareUIDs(uidsArray);
+
+            const DataMap = new Map();
+            for (const item of this.postNoSet) {
+                if (item && item.uid !== undefined) {
+                    DataMap.set(item.uid, item.no);
+                } else {
+                    console.warn("Invalid item found in postNoSet:", item);
+                }
+            }
+            for (const item of this.commentNoSet) {
+                if (item && item.uid !== undefined) {
+                    DataMap.set(item.uid, item.no);
+                } else {
+                    console.warn("Invalid item found in commentNoSet:", item);
+                }
+            }
+
+            for (const resultItem of results) {
+                const { identityCode: uid, galleryCODE: GID, postNum } = resultItem;
+                
+                if (DataMap.has(uid)) {
+                    const no = DataMap.get(uid);
+    
+                    const combinedItem = {
+                        uid: uid,
+                        GID: GID, 
+                        postNum: postNum,
+                        no: no,
+                    };
+                    combinedResults.push(combinedItem);
+                }
+            }
+            combinedResults.sort((a, b) => {
+                if(a.uid > b.uid) return 1;
+                else return -1;
+            });
+
+            return combinedResults;
+        } catch (error) {
+            console.log(error);
+        }   finally {
+            this.identityMap.clear();
+            this.postNoSet.clear();
+            this.commentNoSet.clear();
+        }
+    }
+
+    async _checkUIDisValidX() { // mob
         const currentQueue = Array.from(this.identityMap.keys());
 
         while(currentQueue.length > 0) {
@@ -264,54 +437,85 @@ module.exports = class collectService {
         }
     }
 
-    remainHighNos() {
-        const grouped = new Map();
+    async chkUIDisValid() {
+        const UIDs = await this.collectDAO.getValidUIDs();
 
-        for(const item of this.postNoSet) {
-            const uid = item.uid;
-            if(!grouped.has(uid)) {
+        while(UIDs.length > 0) {
+            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            const batch = UIDs.splice(0, batchSize);
 
-            } else {
+            const results = await Promise.allSettled(
+                batch.map(async (uid) => {
+                    const url = URL_PATTERNS.USER_GALLOG_MAIN(uid);
+                    
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
+                        return { uid, response: response };
+                    } catch (error) {
+                        return { uid, reason: error };
+                    }
+                })
+            );
 
+            results.forEach(result => {
+                const { status, value, reason } = result;
+                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
+                if(status === "fulfilled"){
+                    const { uid, response } = value;
+                    
+                    if(response && response.status && response.status === 404) {
+                        this.collectDAO.updateVaild(uid);
+                        //console.log(`${uid}는 존재하지 않음.`);
+                    }
+                } else {
+                    //currentQueue.push(uid);
+                    console.log(reason);
+                }
+            });
+
+            if (UIDs.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
             }
         }
     }
 
-    async getCommentNoByUID() {
-        const data = await this.collectDAO.getCommentNoByUID(this.identityCode);
-        return data;
-    }
+    async chkPostisExist() { //미완성
+        const posts = await this.collectDAO.getAllPosts();
 
-    async getPostNoByUID() {
-        const data = await this.collectDAO.getPostNoByUID(this.identityCode);
-        return data;
-    }
+        while(posts.length > 0) {
+            let batchSize = 20; 
+            const batch = posts.splice(0, batchSize);
 
-    async deleteGarbage() {
-        const data = await this.collectDAO.getUIDByGalleryCode(this.galleryId);
+            const results = await Promise.allSettled(
+                batch.map(async (no, gid) => {
+                    const url = URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no);
+                    
+                    try {
+                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
+                        return { no, gid, response: response };
+                    } catch (error) {
+                        return { no, gid, reason: error };
+                    }
+                })
+            );
 
-        for(let e of data) {
-            if(this.stopFlag) break;
-            try {
-                const url = URL_PATTERNS.USER_GALLOG_MAIN(e.identityCode);
-                const response = this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
-
-                console.log(e.identityCode, response.status);
-
-                if (response.status === 404) {
-                    await this.collectDAO.deleteGarbage(e.identityCode);
-                    this.SSEUtil.SSESendEvent('delete', {
-                        id: e.identityCode,
-                    });
-                    console.log(`${e.identityCode} 삭제 완료.`);                
-                }  
-            } catch (error) {
-                console.log(error);
-            }
+            results.forEach(result => {
+                const { status, value, reason } = result;
+                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
+                if(status === "fulfilled"){
+                    const { no, gid, response } = value;
+                    
+                    if(response && response.status && response.status === 404) {
+                        this.collectDAO.deletePostInDB(no, gid);
+                    }
+                } else {
+                    console.log(reason);
+                }
+            });
         }
     }
 
-    updateStatus() {
+    _updateStatus() {
         this.restPage = (this.statBit & STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
 
         this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position; 
@@ -322,54 +526,7 @@ module.exports = class collectService {
     }
 }
 
-// 만들어볼 것? 해당 유저의 탈퇴 유무를 언제 점검하는지? 
-// 페이지 대신 포지션별로 조회하는 기능
-
 /*
-async getNicknameFromCommentsInPost() { // mob
-        const postNoArr = Array.from(this.hasCommentPostNoSet);
-
-        for ( 
-            let i = 0, batch = Math.floor(Math.random() * 5) + 20; 
-            i < postNoArr.length; 
-            i += batch, batch = Math.floor(Math.random() * 5) + 20
-        ) { 
-            const slicedArr = postNoArr.slice(i, i + batch); 
-            const results = await Promise.allSettled( // 댓글 api
-                slicedArr.map((no) => {
-                    const url = this.commentApi;
-                    const data = {
-                        'id': this.galleryId,
-                        'no': no,
-                        'cpage': 1,
-                    };
-                    this.headers_mob['Referer'] = `https://m.dcinside.com/board/${this.galleryId}/${no}`;
-                    return this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 0, data);
-                })
-            );
-
-            results.forEach((response, index) => {
-                const no = postNoArr[i + index];
-
-                if (response.status === "fulfilled") {
-                    const html = response.value.data;
-                    const $ = cheerio.load(html);
-                    $('.all-comment-lst li').each((index, element) => {
-                        const uid = $(element).find('a .blockCommentId').attr('data-info');
-                        const nick = $(element).find('a.nick').text();
-                        
-                        if(uid && nick === 'ㅇㅇ') { // 닉네임이 ㅇㅇ
-                            this.idMap.set(uid, nick);
-                            this.noSetC.add({uid, no});
-                        }
-                    });
-                } else {
-                    postNoArr.push(no);
-                    console.log(response.reason, no);
-                }
-            });
-            await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 150) + 100)); // 디도스 방지 딜레이 
-        }
-    }
-
+    만들어볼 것? 해당 유저의 탈퇴 유무를 언제 점검하는지? 
+    DB의 구조 변경 필요(컬럼 추가 및 AI?)
 */

@@ -16,7 +16,11 @@ const userAgentPool = [
 
 const userAgentPoolMob = [
     'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36'
+    'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 11; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36', 
+    'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 12; SM-A525F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.5195.136 Mobile Safari/537.36',   
+    'Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36', 
 ];
 
 const socksproxyList = [
@@ -60,7 +64,7 @@ module.exports = class fetchUtil {
         this.isProxy = isProxy;
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 7500, baseBackoff = 100) {
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 100) {
         let socksProxyAgent = null;
 
         for (let attempt = 1; attempt <= 5; attempt++) {
@@ -118,50 +122,5 @@ module.exports = class fetchUtil {
 
 
 /*
-         async fetcher(url, timeout = 2000) {
-        for (let attempt = 0; attempt < 6; attempt++) {
-            const proxy = this.getRandomProxy();
-            const proxyUrl = `http://${proxy.ip}:${proxy.port}`;
-            const proxyAgent = new HttpsProxyAgent(proxyUrl);
 
-            const controller = new AbortController();
-            const { signal } = controller;
-            const timeoutid = setTimeout(() => controller.abort(), timeout);
-            
-            try {
-                const response = await fetch(url, {
-                    agent: proxyAgent,
-                    headers: {
-                        'User-Agent': this.getRandomUA(),
-                        'Accept': 'text/html',
-                        'Accept-Encoding': 'br, gzip, deflate',
-                        'Referer': 'https://www.dcinside.com/',
-                        'Connection': 'close',
-                        'Cache-Control': 'no-cache',
-                        'X-Forwarded-For': `${proxy.ip}`,
-                        'Forwarded': `for=${proxy.ip}`,
-                        'Via': '1.1 google',
-                    },
-                    signal,
-                });
-                return response;
-            } catch (error) {
-                if (error.name !== 'AbortError') console.error(error);
-                if(attempt < 6) {
-                    if(attempt >= 3) {
-                        if(error.response) console.log(`상태 코드: ${error.response.status}`);
-                        console.log(`${attempt + 1}번째 시도 실패. 다시 시도합니다.`);
-                    }
-                    continue;
-                }
-                throw error;
-            } finally {
-                if (proxyAgent) {
-                    proxyAgent.destroy();
-                }
-                clearTimeout(timeoutid);
-            }
-        }
-        throw new Error('프록시 서버에 문제가 있습니다.');
-    }   
 */

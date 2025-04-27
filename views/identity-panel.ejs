@@ -8,20 +8,19 @@
 </div>
 
 <h2>고닉에 해당하는 ID</h2>
+<div id="nick-count">고닉 개수: 0</div>
 <div id="ids">없음</div>
-<input type="button" id="nick-search" value="갤러리에 대한 전체 고닉 검색">
-<input type="button" id="gallery-search" value="고닉에 대한 갤러리 내역 검색">
-<input type="button" id="delete-garbage" value="불필요한 내역 제거" >
 
 <h2>DB에 저장된 고닉</h2>
-<div id="nick-count">고닉 개수: 0</div>
+<input type="button" id="delete-garbage" value="UID 유효성 검사" >
+<input type="button" id="post-is-valid" value="게시글 유효성 검사" >
 <table>
     <thead>
         <tr>
-            <th>닉네임</th>
             <th>식별코드</th>
             <th>갤러리 명</th>
-            <th>추가된 날짜</th>
+            <th>링크1 (DB)</th>
+            <th>링크2 (스캔한 갤러리)</th>
         </tr>
     </thead>
     <tbody id="nicks">
@@ -29,277 +28,396 @@
 </table>
 
 <script>
-    class indexPage {
-    constructor() {
-        this.init();
-        this.addEvents();
-    }
-
-    init() {
-        window.onload = () => {
-            const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
-            if(savedValue) {
-                document.getElementById('galleryId').value = savedValue.GID || '';
-                document.getElementById('nickname').value = savedValue.nickname || '';
-                document.getElementById('keyword').value = savedValue.keyword || '';
-                document.getElementById('uid').value = savedValue.UID || '';
-                document.getElementById('pos').value = savedValue.pos || 0;
-                document.getElementById('limit').value = savedValue.limit || '';
-                document.getElementById('gallery').value = savedValue.galleryType || '';
-                document.getElementById('is-proxy').checked = savedValue.isProxy || false;
-            }
+    class IndexPage {
+        static EL_IDS = {
+            GALLERY_ID: 'galleryId',
+            NICKNAME: 'nickname',
+            KEYWORD: 'keyword',
+            UID: 'uid',
+            POS: 'pos',
+            LIMIT: 'limit',
+            GALLERY_TYPE: 'gallery',
+            IS_PROXY: 'is-proxy',
+            IDS_DIV: 'ids',
+            STATUS_DIV: 'status',
+            NICKS_TBODY: 'nicks',
+            SEARCH_BTN: 'search',
+            STOP_BTN: 'stop',
+            MODE_SELECT: 'mode',
+            TYPE_SELECT: 'search-type',
+            UNIT_TYPE_SELECT: 'unit-type',
+            DELETE_GARBAGE_BTN: 'delete-garbage',
+            SAVE_OPTIONS_BTN: 'save-options',
+            NICK_COUNT_SPAN: 'nick-count'
+        };
+        static API_PATHS = {
+            CLIENT_INPUT: '/api/client-input', 
+            USER_COLLECT: '/api/user/collect',
+            USER_STOP: '/api/user/stop', 
         };
 
-        this.idsDiv = document.getElementById('ids');
-        this.statusDiv = document.getElementById('status');
-        this.nicksTbody = document.getElementById('nicks');
-        this.isProxy = document.getElementById('is-proxy');
-        this.searchBtn = document.getElementById('search');
-        this.stopBtn = document.getElementById('stop');
-        this.mode = document.getElementById('mode');
-        this.type = document.getElementById('search-type');
-        this.unitType = document.getElementById('unit-type');
-        this.searchByNickBtn = document.getElementById('nick-search');
-        this.searchBygalleryBtn = document.getElementById('gallery-search');
-        this.deleteGarbageBtn = document.getElementById('delete-garbage');
-        this.inputStatus(false);
-    }
+        constructor() {
+            this._bindElements();
+            this._init();
+            this._addEventListeners();
+        }
+        
+        _init() {
+            this._loadOptionsFromSessionStorage();
+            this._setInputStatus(false); 
+            this.eventSource = null; 
+            this.nickCount = 0;
+        }
 
-    addEvents() {
-        this.mode.addEventListener('change', () => {
-            location.href = `/?mode=${this.mode.value}`;
-        });
+        _bindElements() { // 요소 바인딩
+            // Input elements
+            this.galleryIdInput = document.getElementById(IndexPage.EL_IDS.GALLERY_ID);
+            this.nicknameInput = document.getElementById(IndexPage.EL_IDS.NICKNAME);
+            this.keywordInput = document.getElementById(IndexPage.EL_IDS.KEYWORD);
+            this.uidInput = document.getElementById(IndexPage.EL_IDS.UID);
+            this.posInput = document.getElementById(IndexPage.EL_IDS.POS);
+            this.limitInput = document.getElementById(IndexPage.EL_IDS.LIMIT);
 
-        this.type.addEventListener('change', () => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('mode', this.mode.value);
-            url.searchParams.set('type', this.type.value);
-            url.searchParams.set('unitType', this.unitType.value);
-            location.href = url.toString();
-        });
+            // Output/Status elements
+            this.idsDiv = document.getElementById(IndexPage.EL_IDS.IDS_DIV);
+            this.statusDiv = document.getElementById(IndexPage.EL_IDS.STATUS_DIV);
+            this.nicksTbody = document.getElementById(IndexPage.EL_IDS.NICKS_TBODY);
+            this.nickCountSpan = document.getElementById(IndexPage.EL_IDS.NICK_COUNT_SPAN);
 
-        this.unitType.addEventListener('change', () => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('mode', this.mode.value);
-            url.searchParams.set('type', this.type.value);
-            url.searchParams.set('unitType', this.unitType.value);
-            location.href = url.toString();
-        });
+            // Buttons and Selects
+            this.isProxyCheckbox = document.getElementById(IndexPage.EL_IDS.IS_PROXY);
+            this.galleryTypeSelect = document.getElementById(IndexPage.EL_IDS.GALLERY_TYPE);
+            this.modeSelect = document.getElementById(IndexPage.EL_IDS.MODE_SELECT);
+            this.typeSelect = document.getElementById(IndexPage.EL_IDS.TYPE_SELECT);
+            this.unitTypeSelect = document.getElementById(IndexPage.EL_IDS.UNIT_TYPE_SELECT);
+            this.searchBtn = document.getElementById(IndexPage.EL_IDS.SEARCH_BTN);
+            this.stopBtn = document.getElementById(IndexPage.EL_IDS.STOP_BTN);
+            this.deleteGarbageBtn = document.getElementById(IndexPage.EL_IDS.DELETE_GARBAGE_BTN);
+            this.saveOptionsBtn = document.getElementById(IndexPage.EL_IDS.SAVE_OPTIONS_BTN);
+            this.deletePostIsValidBtn = document.getElementById('post-is-valid');
+        }
+        
+        _getValueFromUsers() {
+            this.GID = this.galleryIdInput.value.trim();
+            this.nickname = this.nicknameInput.value.trim();
+            this.keyword = this.keywordInput.value.trim();
+            this.UID = this.uidInput.value.trim() || null;
+            this.pos = parseInt(this.posInput.value.trim(), 10) || 0;
+            this.limit = parseInt(this.limitInput.value.trim(), 10) || 1;
+            this.galleryType = this.galleryTypeSelect.value;
+            this.isProxy = this.isProxyCheckbox.checked;
+            this.unitType = this.unitTypeSelect.value;
 
-        this.searchBtn.addEventListener('click', () => {
-            this.searchAccountFromSite();
-        });
+            if (isNaN(this.pos)) this.pos = 0;
+            if (isNaN(this.limit) || this.limit <= 0) this.limit = 1;
 
-        this.searchByNickBtn.addEventListener('click', () => {
-            this.selectNicknameList();
-        });
-
-        this.searchBygalleryBtn.addEventListener('click', () => {
-            this.selectGalleryList();
-        });
-
-        this.deleteGarbageBtn.addEventListener('click', () => {
-            this.clearDeleted();
-        });
-
-        document.getElementById('save-options').addEventListener('click', () => {
-            this.getValueFromUsers();
-            sessionStorage.setItem('inputs', JSON.stringify({
-                GID: this.GID, 
-                nickname: this.nickname, 
+            return {
+                GID: this.GID,
+                nickname: this.nickname,
                 keyword: this.keyword,
-                UID: this.UID, 
-                pos: this.pos, 
+                UID: this.UID,
+                pos: this.pos,
                 limit: this.limit,
                 galleryType: this.galleryType,
-                isProxy: this.isProxy.checked,
-            }));
-        });
-    
-        this.stopBtn.addEventListener('click', () => {
-            this.stopSearch();
-        })
-    }
-
-    inputStatus(v) {
-        this.searchBtn.disabled = v;
-        this.stopBtn.disabled = !v;
-        this.searchByNickBtn.disabled = v;
-        this.searchBygalleryBtn.disabled = v;
-        this.deleteGarbageBtn.disabled = v;
-    }
-
-    getValueFromUsers() {
-        this.GID = document.getElementById('galleryId').value.trim();
-        this.nickname = document.getElementById('nickname').value.trim();
-        this.keyword = document.getElementById('keyword').value.trim();
-        this.UID = document.getElementById('uid').value.trim() || null;
-        this.pos = document.getElementById('pos').value.trim() || 0;
-        this.limit = document.getElementById('limit').value.trim() || 1;
-        this.galleryType = document.getElementById('gallery').value;
-    }
-
-    async searchAccountFromSite() {
-        this.getValueFromUsers();
-
-        if(!(this.GID && this.nickname && this.limit <= 1000)) {
-            alert('유효한 값을 입력하세요.');
-            return;
+                isProxy: this.isProxy,
+                mode: this.modeSelect.value,
+                type: this.typeSelect.value,
+                unitType: this.unitType,
+            };
         }
-        console.log('게시글의 고닉 조회');
+        
+        _setInputStatus(isSearching) {
+            this.modeSelect.disabled = isSearching;
+            this.typeSelect.disabled = isSearching;
+            this.galleryTypeSelect.disabled = isSearching;
+            this.unitTypeSelect.disabled = isSearching;
+            this.searchBtn.disabled = isSearching;
+            this.stopBtn.disabled = !isSearching;
+            this.deleteGarbageBtn.disabled = isSearching;
+        }
 
-        this.inputStatus(true);
+        _addEventListeners() {
+            this.modeSelect.addEventListener('change', () => this._updateUrlAndReload());
+            this.typeSelect.addEventListener('change', () => this._updateUrlAndReload());
 
-        this.idsDiv.innerHTML = '';
+            this.searchBtn.addEventListener('click', () => this.searchAccountFromSite());
+            this.stopBtn.addEventListener('click', () => this.stopSearch());
+            this.deleteGarbageBtn.addEventListener('click', () => this.clearDeleted());
+            this.saveOptionsBtn.addEventListener('click', () => this._saveOptionsToSessionStorage());
+            this.deletePostIsValidBtn.addEventListener('click', () => this.chkPostIsValid());
+        }
 
-        try {
-            const response = await fetch(`/api/client-input`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    GID: this.GID, 
-                    nickname: this.nickname,
-                    keyword: this.keyword,
-                    mode: this.mode.value,
-                    type: this.type.value,
-                    unitType: this.unitType.value,
-                    isProxy: this.isProxy.checked,
-                    UID: this.UID, 
-                    pos: this.pos, 
-                    limit: this.limit, 
-                    galleryType: this.galleryType,
-                })
+        _updateUrlAndReload() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('mode', this.modeSelect.value);
+            url.searchParams.set('type', this.typeSelect.value);
+            location.href = url.toString();
+        }
+
+        _updateStatus(message, append = false) {
+            if (append) {
+                this.statusDiv.innerHTML += message;
+            } else {
+                this.statusDiv.innerHTML = message;
+            }
+        }
+
+        _saveOptionsToSessionStorage() {
+            const values = this._getValueFromUsers();
+            sessionStorage.setItem('inputs', JSON.stringify({
+                GID: values.GID,
+                nickname: values.nickname,
+                keyword: values.keyword,
+                UID: values.UID,
+                pos: values.pos,
+                limit: values.limit,
+                galleryType: values.galleryType,
+                unitType: values.unitType,
+                isProxy: values.isProxy,
+            }));
+            console.log('Options saved to sessionStorage');
+        }
+        
+        _loadOptionsFromSessionStorage() {
+            document.addEventListener('DOMContentLoaded', () => {
+                const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
+                if (savedValue) {
+                    this.galleryIdInput.value = savedValue.GID || '';
+                    this.nicknameInput.value = savedValue.nickname || '';
+                    this.keywordInput.value = savedValue.keyword || '';
+                    this.uidInput.value = savedValue.UID || '';
+                    this.posInput.value = savedValue.pos || 0;
+                    this.limitInput.value = savedValue.limit || '';
+                    this.galleryTypeSelect.value = savedValue.galleryType || '';
+                    this.unitTypeSelect.value = savedValue.unitType || 'page';
+                    this.isProxyCheckbox.checked = savedValue.isProxy || false;
+                    console.log('Options loaded from sessionStorage');
+                }
             });
+        }
 
-            if(!response.ok) {
-                alert('서버와의 통신이 원활하지 않음.');
+        async searchAccountFromSite() {
+            const values = this._getValueFromUsers();
+
+            if(!(this.GID && this.nickname && this.limit <= 1000)) {
+                alert('유효한 값을 입력하세요.');
                 return;
             }
-            
-            const eventSource = new EventSource(`/api/user/collect`);
-            
-            eventSource.addEventListener('status', (event) => {
-                const data = JSON.parse(event.data);
-                this.statusDiv.innerHTML = `
-                <p> 남은 페이지(포지션): ${data.restPage}  </p>
-                <p> 현재 위치: ${data.position}     </p>
-                <p> 현재 페이지: ${data.curPage}    </p>`;
-            });
+            console.log('게시글의 고닉 조회');
 
-            eventSource.addEventListener('fixed-nick', (event) => { // 고닉 데이터를 테이블에 추가
-                const newIdentityCodes = JSON.parse(event.data); 
-                const fragment = document.createDocumentFragment();
+            this._setInputStatus(true);
+            this.idsDiv.innerHTML = '';
+            this.nicksTbody.innerHTML = '';
+            this.nickCount = 0; // Reset count
+            if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
 
-                newIdentityCodes.forEach(id => {
-                    const span = document.createElement('span');
-                    span.innerHTML = `<b><a href='https://gallog.dcinside.com/${id[0]}' target="_blank">${id[0]}</a>(${id[1]})</b> `;
-                    fragment.appendChild(span);
+            try {
+                const response = await fetch(IndexPage.API_PATHS.CLIENT_INPUT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(values)
                 });
-                this.idsDiv.appendChild(fragment);
-            });
 
-            eventSource.addEventListener('complete', (event) => {
-                eventSource.close();
-                
-                this.statusDiv.innerHTML += `<p> 작업 완료. </p>`;
-                this.inputStatus(false);
-            });
+                if (!response.ok) {
+                    // Try to get error message from backend if possible
+                    let errorMsg = `서버 통신 오류 (${response.status}).`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg += ` 메시지: ${errorData.message || response.statusText}`;
+                    } catch (e) { /* Ignore if response body is not JSON */ }
+                    throw new Error(errorMsg);
+                }
 
-            eventSource.onerror = () => {
-                eventSource.close();
-                
-                this.statusDiv.innerHTML = `<p> 연결 오류 발생. </p>`;
-                this.inputStatus(false);
-            };
+                // 2. Setup SSE listener
+                this._setupSSEListener();
+
+            } catch (error) {
+                console.error('Search initiation failed:', error);
+                this._updateStatus(`<p style="color: red;">오류 발생: ${error.message}</p>`, true);
+                this._setInputStatus(false);
+            }
+        }
         
-        } catch (error) {
-            console.error('Error:', error);
+        _setupSSEListener() {
+            if (this.eventSource) {
+                this.eventSource.close();
+            }
+
+            this.eventSource = new EventSource(IndexPage.API_PATHS.USER_COLLECT);
+
+            this.eventSource.addEventListener('status', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    this._updateStatus(`
+                        <p> 남은 페이지(포지션): ${data.restPage ?? 'N/A'} </p>
+                        <p> 현재 위치: ${data.position ?? 'N/A'} </p>
+                        <p> 현재 페이지: ${data.curPage ?? 'N/A'} </p>
+                    `);
+                } catch (e) {
+                    console.error("Error parsing status event data:", e, event.data);
+                }
+            });
+
+            this.eventSource.addEventListener('fixed-nick', (event) => {
+                try {
+                    const newIdentityCodes = JSON.parse(event.data);
+                    if (!Array.isArray(newIdentityCodes)) {
+                        console.error("Invalid data format for fixed-nick:", newIdentityCodes);
+                        return;
+                    }
+
+                    const fragment = document.createDocumentFragment();
+                    newIdentityCodes.forEach(id => {
+                        if (Array.isArray(id) && id.length >= 2) {
+                            const span = document.createElement('span');
+                            span.innerHTML = `<b><a href='https://gallog.dcinside.com/${encodeURIComponent(id[0])}' target="_blank">${id[0]}</a>(${id[1]})</b> `;
+                            fragment.appendChild(span);
+                            this.nickCount++;
+                        } else {
+                            console.warn("Skipping invalid identity code entry:", id);
+                        }
+                    });
+                    this.idsDiv.appendChild(fragment);
+                    if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
+                } catch (e) {
+                    console.error("Error parsing fixed-nick event data:", e, event.data);
+                }
+            });
+
+            this.eventSource.addEventListener('compare', (event) => {
+                try {
+                    const results = JSON.parse(event.data);
+
+                    results.forEach((result) => {
+                        this.nicksTbody.innerHTML += `<tr>
+                            <td>${result.uid}</td>
+                            <td>${result.GID}</td>
+                            <td>
+                                <a href='https://gall.dcinside.com/board/view/?id=${result.GID}&no=${result.postNum}' target="_blank">
+                                    ${result.postNum}
+                                </a>
+                            </td>
+                            <td>
+                                <a href='https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.GID}&no=${result.no}' target="_blank">
+                                    ${result.no}
+                                </a>
+                            </td>
+                        </tr>`;
+                    });
+
+                } catch (error) {
+                    
+                }
+            });
+
+            this.eventSource.addEventListener('complete', (event) => {
+                console.log('SSE stream complete.');
+                this._updateStatus(`<p> 작업 완료 (${this.nickCount}개 발견). </p>`, true);
+                this._closeSSEConnection();
+                this._setInputStatus(false);
+            });
+
+            this.eventSource.onerror = (error) => {
+                console.error('EventSource error:', error);
+                this._updateStatus(`<p style="color: red;"> 데이터 수신 중 오류 발생. </p>`, true);
+                this._closeSSEConnection();
+                this._setInputStatus(false);
+            };
         }
-    }
+
+        _closeSSEConnection() {
+            if (this.eventSource) {
+                this.eventSource.close();
+                this.eventSource = null;
+                console.log('EventSource connection closed.');
+            }
+        }
+
+        async stopSearch() {
+            console.log('Stopping search...');
+            this._updateStatus('<p> 중지 요청 중... </p>', true);
+            this.stopBtn.disabled = true;
+
+            try {
+                const mode = this.modeSelect.value;
+                const response = await fetch(`${IndexPage.API_PATHS.USER_STOP}?mode=${mode}`);
+                if (!response.ok) {
+                    throw new Error(`서버 응답 오류 (${response.status})`);
+                }
+                this._updateStatus('<p> 중지 요청 성공. </p>', true);
+                console.log('Stop request successful.');
+
+            } catch (error) {
+                console.error('Error stopping search:', error);
+                this._updateStatus(`<p style="color: red;"> 중지 요청 실패: ${error.message} </p>`, true);
+            }
+        }
+        
+        async clearDeleted() {
+            const values = this._getValueFromUsers();
+            if (!values.GID) {
+                this._updateStatus('<p style="color: red;">갤러리 ID를 입력하세요.</p>');
+                this.galleryIdInput.focus();
+                return;
+            }
+            console.log(`Deleting garbage for gallery ID: ${values.GID}`);
+            this._setInputStatus(true);
+            this._updateStatus(`<p>갤러리 [${values.GID}]의 삭제된 데이터 정리 요청 중...</p>`);
+
+            try {
+                const response = await fetch(`${IndexPage.API_PATHS.NICKNAME_LIST}?galleryid=${values.GID}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `정리 요청 실패 (${response.status}).`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg += ` 메시지: ${errorData.message || response.statusText}`;
+                    } catch (e) { /* Ignore if response body is not JSON */ }
+                    throw new Error(errorMsg);
+                }
+
+                const payload = await response.json();
+                console.log('Clear deleted response:', payload);
+                this._updateStatus(`<p>정리 작업 완료. 결과: ${JSON.stringify(payload)}</p>`, true);
+
+            } catch (error) {
+                console.error('Error clearing deleted data:', error);
+                this._updateStatus(`<p style="color: red;"> 정리 작업 실패: ${error.message} </p>`, true);
+            } finally {
+                this._setInputStatus(false);
+            }
+        }
     
-    async stopSearch() {
-        try {
-            await fetch(`/api/user/stop?mode=${this.mode.value}`); // 서버에 중지 요청
-        } catch (error) {
-            console.error('Error:', error);
+        async chkPostIsValid() {
+            try {
+                const response = await fetch(`/api/post-list`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `검사 요청 실패 (${response.status}).`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg += ` 메시지: ${errorData.message || response.statusText}`;
+                    } catch (e) { /* Ignore if response body is not JSON */ }
+                    throw new Error(errorMsg);
+                }
+
+                const payload = await response.json();
+                console.log('Post validity check response:', payload);
+                this._updateStatus(`<p>검사 작업 완료. 결과: ${JSON.stringify(payload)}</p>`, true);
+
+            } catch (error) {
+                console.error('Error checking post validity:', error);
+                this._updateStatus(`<p style="color: red;"> 검사 작업 실패: ${error.message} </p>`, true);
+            } finally {
+                this._setInputStatus(false);
+            }
         }
     }
-
-    async selectNicknameList() {
-        this.getValueFromUsers();
-        this.nicksTbody.innerHTML = '';
-        try {
-            const response = await fetch(`/api/nickname-list/?galleryid=${this.GID}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' },
-            });
-
-            const payload = await response.json();
-            
-            payload.forEach(id => {
-                this.nicksTbody.innerHTML += `
-                    <tr>
-                        <td><a href ='https://gallog.dcinside.com/${id.identityCode}' target=_blank>${id.identityCode}<a></td>
-                        <td>${id.nickname}</td>
-                        <td>${id.galleryName}</td>
-                        <td>${new Date(id.added_date).toLocaleString('ko-KR')}</td>
-                    </tr>`;
-            });
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    
-    async selectGalleryList() {
-        this.getValueFromUsers();
-        this.nicksTbody.innerHTML = '';
-
-        try {
-            const response = await fetch(`/api/gallery-list?uid=${this.UID}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            const payload = await response.json();
-            
-            payload.forEach(id => {
-                this.nicksTbody.innerHTML += `
-                    <tr>
-                        <td><a href ='https://gallog.dcinside.com/${id.identityCode}' target=_blank>${id.identityCode}<a></td>
-                        <td>${id.nickname}</td>
-                        <td>${id.galleryName}</td>
-                        <td>${new Date(id.added_date).toLocaleString('ko-KR')}</td>
-                    </tr>`;
-            });
-        } catch (error) {
-            console.log(error);
-        }
-    }
-    
-    async clearDeleted() {
-        this.getValueFromUsers();
-        if(!(this.GID)) {
-            alert('필수 칸에 입력이 필요함');
-            return;
-        }
-        this.inputStatus(true);
-
-        try {
-            const response = await fetch(`/api/nickname-list?galleryid=${this.GID}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            const payload = await response.json();
-
-        } catch (error) {
-            console.log(error);
-        } finally {
-            this.inputStatus(false);
-        }
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    new indexPage();
-});
+    new IndexPage();
 </script>

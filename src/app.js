@@ -16,19 +16,16 @@ app.get('/', (req, res) => {
     const defaultModeTypeMapping = {
         'identity': 'search_name',
         'delete-post': 'posts',
-        'unit-type': 'page',
     };
 
-    let { mode, type, unitType } = req.query;
+    let { mode, type } = req.query;
 
     mode = mode || 'identity';
     type = type || defaultModeTypeMapping[mode] || '';
-    unitType = unitType || defaultModeTypeMapping[mode] || '';
 
     res.render('index', {
         mode,
         type,
-        unitType,
     });
 });
 
@@ -84,21 +81,13 @@ app.post('/api/client-input', async (req, res) => {
     res.json({ status: 'success' });
 });
 
-app.get('/api/nickname-list', async (req, res) => {
-    const { galleryid } = req.query;
-    const data = await collectservice.getUIDByGalleryCode(galleryid);
-    res.json(data)
-});
-
-app.get('/api/gallery-list', async (req, res) => {
-    const { uid } = req.query;
-    const data = await collectservice.getGalleryCodeByUID(uid);
-    res.json(data)
-});
-
 app.delete('/api/nickname-list', async (req, res) => {
-    const { galleryid } = req.query;
-    await collectservice.deleteGarbage(galleryid);
+    await collectservice.chkUIDisValid();
+    res.json({ status: 'success' });
+});
+
+app.delete('/api/post-list', async (req, res) => {
+    await identitycontroller.chkPostisExist();
     res.json({ status: 'success' });
 });
 

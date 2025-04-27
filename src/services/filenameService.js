@@ -5,6 +5,7 @@ const { SELECTORS, URL_PATTERNS } = require('../config/const');
 const galleryList = [
     'fancam', 
     'savecam',
+    'un-',
     'grsgills', 
     'girl',
     'group',
@@ -80,7 +81,6 @@ module.exports = class filenameService {
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': 'Windows',
     };
-    
     postNoSet = new Set();
     
     constructor({
@@ -109,7 +109,7 @@ module.exports = class filenameService {
         }
     }
 
-    async _getPostsFromSite() { //des
+    async _getPostsFromSite() { // des
         const response = await this.fetchUtil.axiosFetcher(
             URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', this.headers);
         const html = response.data;
