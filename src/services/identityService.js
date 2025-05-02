@@ -3,43 +3,85 @@ const fetchUtil = require('../utils/fetchUtil');
 const collectDAO = require('../repositories/collectDAO');
 const { SELECTORS, STATUS_FLAGS, URL_PATTERNS } = require('../config/const');
 
-
 module.exports = class collectService {
-    headers_des = {
-        'Accept': 'text/html',
+    stopFlag = true;
+    headers_des_chrome = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
         'Accept-Language': 'ko-KR,ko;q=0.9',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'max-age=0',
         'Connection': 'keep-alive',
-        'Cookie': 'used_darkmode=1; darkmode=1; alarm_popup=1; ck_img_view_cnt=4;',
         'Host': 'gall.dcinside.com',
         'Pragma': 'no-cache',
         'Referer': 'https://www.dcinside.com/',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'origin',
+        'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
+        'User-Agent': '',
+        'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': 'Windows',
     };
-    headers_mob = {
+    headers_des_edge = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'ko,en;q=0.9,en-US;q=0.8',
+        'Connection': 'keep-alive',
+        'Host': 'gall.dcinside.com',
+        'sec-ch-ua-platform': 'Windows',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': '',
+        'sec-ch-ua': '"Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': "Windows",
+    };
+    headers_mob_chrome = {
         'Accept': '*/*',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'ko-KR,ko;q=0.6',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
         'Connection': 'keep-alive',
+        //'Content-Length': '62',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Host': 'm.dcinside.com',
         'Origin': 'https://m.dcinside.com',
+        'Referer': '',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
-        'Sec-GPC': 1,
+        'User-Agent': '',
+        'X-CSRF-TOKEN': '212bc2124f5cb571ece6318895060fff',
         'X-Requested-With': 'XMLHttpRequest',
-        'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
+        'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
         'sec-ch-ua-mobile': '?1',
         'sec-ch-ua-platform': 'Android',
     };
+    headers_mob_edge = {
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
+        'Accept-Language': 'ko,en;q=0.9,en-US;q=0.8',
+        'Connection': 'keep-alive',
+        //'Content-Length': '62',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'Host': 'm.dcinside.com',
+        'Origin': 'https://m.dcinside.com',
+        'Referer': '',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+        'User-Agent': '',
+        'X-CSRF-TOKEN': '212bc2124f5cb571ece6318895060fff',
+        'X-Requested-With': 'XMLHttpRequest',
+        'sec-ch-ua': '"Microsoft Edge";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        'sec-ch-ua-mobile': '?1',
+        'sec-ch-ua-platform': 'Android',
+    };
+
     collectDAO = new collectDAO();
     identityMap = new Map(); // UID
     newIdentityMap = new Map(); // UID
@@ -50,7 +92,7 @@ module.exports = class collectService {
     curPage = 1;
 
     constructor(
-        { SSEUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, isProxy }
+        { SSEUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, actionType, isProxy }
     ) {
         this.fetchUtil = new fetchUtil(isProxy);
         this.SSEUtil = SSEUtil;
@@ -61,40 +103,82 @@ module.exports = class collectService {
         this.content = content;
         this.type = type;
         this.unitType = unitType;
+        this.actionType = actionType;
         this.id = id;
     }
 
-    async getNicknameFromSite() {
-        //await this.collectDAO.test();
+    requestStop() {
+        this.stopFlag = true;
+    }
+
+    _updateStatus() {
+        this.restPage = (this.statBit & STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
+
+        this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position; 
+
+        this.curPage = (this.statBit & STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
+
+        this.statBit = 0;
+    }
+
+    async process() {
+        this.stopFlag = false;
+
         if(this.type === 'search_all') {
-            this.position = 1;
+            this.curPage = this.position || 1;
+        } else if(this.position < 1) {
+            this.position = await this._getTotalPostCount(); // 총 게시글 수 조회
+        }
+
+        while(!this.stopFlag) {
+            await this._getNicknameFromSite();
+
+            const newIdentityCodes = Array.from(this.newIdentityMap);
+
+            if(newIdentityCodes && newIdentityCodes.length > 0) this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
+
+            this.SSEUtil.SSESendEvent('status', {
+                restPage: this.restPage, 
+                curPage: this.curPage - 1,
+                position: this.position
+            });
+
+            this.newIdentityMap.clear();
+            this.hasCommentPostNoSet.clear();
+
+            if(this.restPage < 1 || this.position < 1) this.stopFlag = true;
+        }
+        console.log('식별코드 수집 완료.');
+
+        if(this.actionType === 'insert') {
+            await this._insertUIDs();
+
+            console.log('식별코드 삽입 작업 완료.');
+        } else {
+            const results = await this._compareUIDs();
+
+            this.SSEUtil.SSESendEvent('compare', results);
+
+            console.log('식별코드 비교 작업 완료.');
+        }
+    }
+
+    async _getNicknameFromSite() {//await this.collectDAO.test();
+        if(this.type === 'search_all') {
             await this._getNicknameFromPostListsAll(); // 페이지에서 게시글 목록 조회
         } else {
-            if(this.position < 1) this.position = await this.getTotalPostCount(); // 총 게시글 수 조회
             await this._getNicknameFromPostLists(); // 페이지에서 게시글 목록 조회
         }
         await this._getNicknameFromCommentsInPost(); // 게시글 별 댓글 조회
         
         this._updateStatus();
-        if(this.type === 'search_all') this.restPage--;
-
-        const newIdentityCodes = Array.from(this.newIdentityMap);
-
-        this.newIdentityMap.clear();
-        this.hasCommentPostNoSet.clear();
-        
-        return {
-            newIdentityCodes: newIdentityCodes,
-            status: {
-                restPage: this.restPage, 
-                curPage: this.curPage - 1,
-                position: this.position
-            }
+        if(this.type === 'search_all') {
+            this.restPage--;
         }
     }
 
-    async getTotalPostCount() { // mob
-        const response = await this.fetchUtil.axiosFetcher(URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', this.headers_mob, 1);
+    async _getTotalPostCount() { // mob
+        const response = await this.fetchUtil.axiosFetcher(URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', {...this.headers_mob_chrome}, 1);
         const html = response.data;
         const $ = cheerio.load(html);
 
@@ -105,7 +189,7 @@ module.exports = class collectService {
     
     async _getNicknameFromPostLists() { // des
         const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_SEARCH_DES(this.galleryType, this.galleryId, this.curPage, this.position, this.type, this.content), 'GET', this.headers_des);
+            URL_PATTERNS.POST_SEARCH_DES(this.galleryType, this.galleryId, this.curPage, this.position, this.type, this.content), 'GET', {...this.headers_des_chrome});
         
         const resurl = new URL(response.request.res.responseUrl);
         const urlPage = Number(resurl.searchParams.get('page'));
@@ -129,7 +213,7 @@ module.exports = class collectService {
                 if(uid) {
                     const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
                     
-                    if(nick === 'ㅇㅇ') {
+                    if(nick) {
                         if(!(this.identityMap.has(uid))) {
                             this.identityMap.set(uid, nick);
                             this.newIdentityMap.set(uid, nick);
@@ -144,11 +228,12 @@ module.exports = class collectService {
             
             if(this.unitType === 'page') this.statBit |= STATUS_FLAGS.NO_MORE_POSTS; // restPage
         }
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 100) + 100);
     }
 
     async _getNicknameFromPostListsAll() { // des
         const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.curPage), 'GET', this.headers);
+            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.curPage), 'GET', {...this.headers_des_chrome});
 
         const html = response.data;
         const $ = cheerio.load(html);
@@ -162,7 +247,7 @@ module.exports = class collectService {
                 if (uid) {
                     const nick = $(element).find(SELECTORS.POST_WRITER).attr(SELECTORS.POST_NICK_ATTR);
 
-                    if(nick/* === 'ㅇㅇ'*/) {
+                    if(nick) {
                         if(!(this.identityMap.has(uid))) {
                             this.identityMap.set(uid, nick);
                             this.newIdentityMap.set(uid, nick);
@@ -175,6 +260,7 @@ module.exports = class collectService {
                 if(hasComment) this.hasCommentPostNoSet.add(no);
             }
         });
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 100) + 100);
     }
 
     async _getNicknameFromCommentsInPost() { //mob
@@ -193,9 +279,10 @@ module.exports = class collectService {
                         'no': no,
                         'cpage': 1,
                     };
-                    this.headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
+                    const headers_mob = {...this.headers_mob_chrome};
+                    headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
                     try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', this.headers_mob, 1, data, 15000);
+                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', headers_mob, 1, data, 10000);
                         return { no, response: response };
                     } catch (error) {
                         return { no, reason: error };
@@ -208,7 +295,7 @@ module.exports = class collectService {
             });
             // 배치 처리 후 딜레이
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 250) + 250);
             }
         }
     }
@@ -224,7 +311,7 @@ module.exports = class collectService {
                 const uid = $(element).find(SELECTORS.COMMENT_UID_ITEM).attr(SELECTORS.COMMENT_UID_ATTR);
                 const nick = $(element).find(SELECTORS.COMMENT_NICK_ATTR).text();
                 
-                if(uid /*&& nick === 'ㅇㅇ'*/) { // 닉네임이 ㅇㅇ
+                if(uid) { 
                     if(!(this.identityMap.has(uid))) {
                         this.identityMap.set(uid, nick);
                         this.newIdentityMap.set(uid, nick);
@@ -238,7 +325,7 @@ module.exports = class collectService {
         }
     }
 
-    async insertUIDs() {
+    async _insertUIDs() {
         try {
             let startTime = 0, endTime = 0, time = 0;
             //await this._checkUIDisValid(); // UID가 탈퇴했는지 확인
@@ -343,7 +430,7 @@ module.exports = class collectService {
         }
     }
 
-    async compareUIDs() {
+    async _compareUIDs() {
         let combinedResults = [];
         try{
             const uidsArray = Array.from(this.identityMap.keys());
@@ -393,136 +480,6 @@ module.exports = class collectService {
             this.postNoSet.clear();
             this.commentNoSet.clear();
         }
-    }
-
-    async _checkUIDisValidX() { // mob
-        const currentQueue = Array.from(this.identityMap.keys());
-
-        while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 20; 
-            const batch = currentQueue.splice(0, batchSize);
-
-            const results = await Promise.allSettled(
-                batch.map(async (uid) => {
-                    const url = URL_PATTERNS.USER_GALLOG_MAIN(uid);
-                    
-                    try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
-                        return { uid, response: response };
-                    } catch (error) {
-                        return { uid, reason: error };
-                    }
-                })
-            );
-
-            results.forEach(result => {
-                const { status, value, reason } = result;
-                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
-                if(status === "fulfilled"){
-                    const { uid, response } = value;
-                    
-                    if(response && response.status && response.status === 404) {
-                        this.identityMap.delete(uid);
-                        //console.log(`${uid}는 존재하지 않음.`);
-                    }
-                } else {
-                    //currentQueue.push(uid);
-                    console.log(reason, uid);
-                }
-            });
-
-            if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
-            }
-        }
-    }
-
-    async chkUIDisValid() {
-        const UIDs = await this.collectDAO.getValidUIDs();
-
-        while(UIDs.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 20; 
-            const batch = UIDs.splice(0, batchSize);
-
-            const results = await Promise.allSettled(
-                batch.map(async (uid) => {
-                    const url = URL_PATTERNS.USER_GALLOG_MAIN(uid);
-                    
-                    try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
-                        return { uid, response: response };
-                    } catch (error) {
-                        return { uid, reason: error };
-                    }
-                })
-            );
-
-            results.forEach(result => {
-                const { status, value, reason } = result;
-                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
-                if(status === "fulfilled"){
-                    const { uid, response } = value;
-                    
-                    if(response && response.status && response.status === 404) {
-                        this.collectDAO.updateVaild(uid);
-                        //console.log(`${uid}는 존재하지 않음.`);
-                    }
-                } else {
-                    //currentQueue.push(uid);
-                    console.log(reason);
-                }
-            });
-
-            if (UIDs.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 500) + 500);
-            }
-        }
-    }
-
-    async chkPostisExist() { //미완성
-        const posts = await this.collectDAO.getAllPosts();
-
-        while(posts.length > 0) {
-            let batchSize = 20; 
-            const batch = posts.splice(0, batchSize);
-
-            const results = await Promise.allSettled(
-                batch.map(async (no, gid) => {
-                    const url = URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no);
-                    
-                    try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_des);
-                        return { no, gid, response: response };
-                    } catch (error) {
-                        return { no, gid, reason: error };
-                    }
-                })
-            );
-
-            results.forEach(result => {
-                const { status, value, reason } = result;
-                // 특정 경우(500?)에서는 response가 undefined로 표시되는 경우 존재. 이러한 경우가 드물게 존재하는데.
-                if(status === "fulfilled"){
-                    const { no, gid, response } = value;
-                    
-                    if(response && response.status && response.status === 404) {
-                        this.collectDAO.deletePostInDB(no, gid);
-                    }
-                } else {
-                    console.log(reason);
-                }
-            });
-        }
-    }
-
-    _updateStatus() {
-        this.restPage = (this.statBit & STATUS_FLAGS.NO_MORE_POSTS) ? this.restPage - 1: this.restPage;
-
-        this.position = (this.statBit & STATUS_FLAGS.INVALID_POSITION) ? this.position - 10000: this.position; 
-
-        this.curPage = (this.statBit & STATUS_FLAGS.INVALID_PAGE) ? 1 : this.curPage + 1;
-
-        this.statBit = 0;
     }
 }
 

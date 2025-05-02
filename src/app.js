@@ -82,12 +82,12 @@ app.post('/api/client-input', async (req, res) => {
 });
 
 app.delete('/api/nickname-list', async (req, res) => {
-    await collectservice.chkUIDisValid();
+    await identitycontroller.chkUIDisValid();
     res.json({ status: 'success' });
 });
 
 app.delete('/api/post-list', async (req, res) => {
-    await identitycontroller.chkPostisExist();
+    await identitycontroller.chkPostExists();
     res.json({ status: 'success' });
 });
 

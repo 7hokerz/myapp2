@@ -1,9 +1,8 @@
-
 const SSEUtil = require('../utils/SSEUtil');
 const identityService = require('../services/identityService');
+const checkService = require('../services/checkService');
 
 module.exports = class identityController {
-    stopFlag = true;
     SSEUtil = new SSEUtil();
     constructor() {
         
@@ -20,6 +19,7 @@ module.exports = class identityController {
             pos, 
             limit,
             unitType,
+            actionType,
             isProxy, 
         } = req.body;
 
@@ -43,55 +43,40 @@ module.exports = class identityController {
             type: type, 
             id: id, 
             unitType: unitType,
+            actionType: actionType,
             isProxy: isProxy,
         });
-        this.stopFlag = false;
     }
     
     async getNicknameFromSite(req, res) { 
         this.SSEUtil.init(req, res);
         this.SSEUtil.SSEInitHeader();
 
-        while(!(this.stopFlag)) {
-            const { newIdentityCodes, status } = await this.identityService.getNicknameFromSite();
+        try {
+            await this.identityService.process();
 
-            if(status.restPage < 1 || status.position < 1) this.stopFlag = true;
-            
-            if(newIdentityCodes && newIdentityCodes.length > 0) this.SSEUtil.SSESendEvent('fixed-nick', newIdentityCodes);
-            this.SSEUtil.SSESendEvent('status', status);
+            this.SSEUtil.SSESendEvent('complete', '');
+        } catch (error) {
+            console.error('Error during nickname collection:', error);
+        } finally {
+            this.SSEUtil.SSEendEvent();
         }
-        console.log('식별코드 수집 완료.');
-
-        if(true) {
-            await this._insertUIDs();
-        } else {
-            await this._compareUIDs();
-        }
-
-        this.SSEUtil.SSESendEvent('complete', '');
-        this.SSEUtil.SSEendEvent();
     }
 
-    async _insertUIDs() {
-        await this.identityService.insertUIDs();
-
-        console.log('식별코드 삽입 작업 완료.');
+    async chkPostExists() {
+        this.checkService = new checkService();
+        await this.checkService.chkPostExists();
     }
 
-    async _compareUIDs() {
-        const results = await this.identityService.compareUIDs();
-
-        this.SSEUtil.SSESendEvent('compare', results);
-
-        console.log('식별코드 비교 작업 완료.');
-    }
-
-    async chkPostisExist() {
-        await this.identityService.chkPostisExist();
+    async chkUIDisValid() {
+        this.checkService = new checkService();
+        await this.checkService.chkUIDisValid();
     }
 
     stopSearch() {
-        this.stopFlag = true;
-        console.log("작업 중지 요청됨. 대기중...");
+        if (this.identityService) {
+            this.identityService.requestStop(); // 서비스에 중지 요청
+            console.log("작업 중지 요청됨. 대기중...");
+        }
     }
 }

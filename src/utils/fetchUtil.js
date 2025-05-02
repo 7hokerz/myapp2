@@ -2,25 +2,22 @@ const axios = require('axios');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 
 const userAgentPool = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:134.0) Gecko/20100101 Firefox/134.0',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0 Safari/537 Edg/91',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
+    //'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36 Edg/135.0.0.0',
+    //'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0 Safari/537 Edg/91',
     'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537 Chrome Safari Edg',
+    //'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537 Chrome Safari Edg',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux i686; rv:109.0) Gecko/20100101 Firefox/121.0',
 ];
 
 const userAgentPoolMob = [
-    'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 14; Pixel 8 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 11; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36', 
-    'Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.87 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 12; SM-A525F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.5195.136 Mobile Safari/537.36',   
-    'Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36', 
+    'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Linux; Android 13; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36',
+    //'Mozilla/5.0 (Linux; Android 13; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Mobile Safari/537.36 Edg/135.0.0.0'
 ];
 
 const socksproxyList = [
@@ -64,7 +61,7 @@ module.exports = class fetchUtil {
         this.isProxy = isProxy;
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 100) {
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 200) {
         let socksProxyAgent = null;
 
         for (let attempt = 1; attempt <= 5; attempt++) {
@@ -78,7 +75,7 @@ module.exports = class fetchUtil {
             const axiosInstance = axios.create({
                 httpAgent: socksProxyAgent,
                 headers: headers,
-                proxy: false,
+                keepAlive: true,
                 timeout,
                 validateStatus: function (status) {
                     return ((status >= 200 && status < 300) || status === 403 || status === 404);
@@ -99,8 +96,37 @@ module.exports = class fetchUtil {
                 const response = await axiosInstance(requestConfig);
                 return response;
             } catch (error) {
-                if(!(error.code === 'ECONNABORTED' || error.code === 'ERR_BAD_RESPONSE')) console.log(error.code, error.message, url);
-                await new Promise(resolve => setTimeout((resolve), baseBackoff * 2 ** attempt)); // 지수 백오프
+                if(axios.isAxiosError(error)) {
+                    if(error.code !== 'ECONNABORTED' && error.code !== 'ENOTFOUND' && attempt > 1) {
+                        console.error('Error code:', error.code);
+                        console.error('Error message:', error.message);
+                        console.error('Error url:', url);
+
+                        if (error.response) {
+                            console.error('Status Code:', error.response.status);
+                            console.error('Response Data:', error.response.data);
+                            //console.error('Response Headers:', error.response.headers);
+                        } else if (error.request) { 
+                            console.error('Request made but no response received.');
+                        } else {
+                            console.error('Error setting up request.');
+                        }
+
+                        console.error('Request Config:', error.config.data);
+
+                        console.log('attempt: ', attempt, '\n');
+                    }
+                } else {
+                    console.error('Unexpected error', error);
+                }
+                
+
+                let delay = baseBackoff * 2 ** attempt; // backoff
+                await new Promise(
+                    resolve => setTimeout(
+                        (resolve), (delay / 2) + Math.random() * (delay / 2) // jitter
+                    )
+                );
             }
         }
         throw new Error('프록시 서버에 문제가 있습니다.');

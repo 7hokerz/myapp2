@@ -90,6 +90,7 @@
             this.modeSelect = document.getElementById(IndexPage.EL_IDS.MODE_SELECT);
             this.typeSelect = document.getElementById(IndexPage.EL_IDS.TYPE_SELECT);
             this.unitTypeSelect = document.getElementById(IndexPage.EL_IDS.UNIT_TYPE_SELECT);
+            this.actionTypeSelect = document.getElementById('action-type');
             this.searchBtn = document.getElementById(IndexPage.EL_IDS.SEARCH_BTN);
             this.stopBtn = document.getElementById(IndexPage.EL_IDS.STOP_BTN);
             this.deleteGarbageBtn = document.getElementById(IndexPage.EL_IDS.DELETE_GARBAGE_BTN);
@@ -98,15 +99,13 @@
         }
         
         _getValueFromUsers() {
-            this.GID = this.galleryIdInput.value.trim();
-            this.nickname = this.nicknameInput.value.trim();
-            this.keyword = this.keywordInput.value.trim();
+            this.GID = this.galleryIdInput.value.trim() || null;
+            this.nickname = this.nicknameInput.value.trim() || null;
+            this.keyword = this.keywordInput.value.trim() || null;
             this.UID = this.uidInput.value.trim() || null;
             this.pos = parseInt(this.posInput.value.trim(), 10) || 0;
             this.limit = parseInt(this.limitInput.value.trim(), 10) || 1;
-            this.galleryType = this.galleryTypeSelect.value;
             this.isProxy = this.isProxyCheckbox.checked;
-            this.unitType = this.unitTypeSelect.value;
 
             if (isNaN(this.pos)) this.pos = 0;
             if (isNaN(this.limit) || this.limit <= 0) this.limit = 1;
@@ -118,19 +117,21 @@
                 UID: this.UID,
                 pos: this.pos,
                 limit: this.limit,
-                galleryType: this.galleryType,
                 isProxy: this.isProxy,
+                galleryType: this.galleryTypeSelect.value,
                 mode: this.modeSelect.value,
                 type: this.typeSelect.value,
-                unitType: this.unitType,
+                unitType: this.unitTypeSelect.value,
+                actionType: this.actionTypeSelect.value,
             };
         }
         
         _setInputStatus(isSearching) {
+            this.galleryTypeSelect.disabled = isSearching;
             this.modeSelect.disabled = isSearching;
             this.typeSelect.disabled = isSearching;
-            this.galleryTypeSelect.disabled = isSearching;
             this.unitTypeSelect.disabled = isSearching;
+            this.actionTypeSelect.disabled = isSearching;
             this.searchBtn.disabled = isSearching;
             this.stopBtn.disabled = !isSearching;
             this.deleteGarbageBtn.disabled = isSearching;
@@ -173,6 +174,7 @@
                 limit: values.limit,
                 galleryType: values.galleryType,
                 unitType: values.unitType,
+                actionType: values.actionType,
                 isProxy: values.isProxy,
             }));
             console.log('Options saved to sessionStorage');
@@ -181,25 +183,26 @@
         _loadOptionsFromSessionStorage() {
             document.addEventListener('DOMContentLoaded', () => {
                 const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
-                if (savedValue) {
-                    this.galleryIdInput.value = savedValue.GID || '';
-                    this.nicknameInput.value = savedValue.nickname || '';
-                    this.keywordInput.value = savedValue.keyword || '';
-                    this.uidInput.value = savedValue.UID || '';
-                    this.posInput.value = savedValue.pos || 0;
-                    this.limitInput.value = savedValue.limit || '';
-                    this.galleryTypeSelect.value = savedValue.galleryType || '';
-                    this.unitTypeSelect.value = savedValue.unitType || 'page';
-                    this.isProxyCheckbox.checked = savedValue.isProxy || false;
-                    console.log('Options loaded from sessionStorage');
-                }
+                
+                this.galleryIdInput.value = savedValue.GID || '';
+                this.nicknameInput.value = savedValue.nickname || '';
+                this.keywordInput.value = savedValue.keyword || '';
+                this.uidInput.value = savedValue.UID || '';
+                this.posInput.value = savedValue.pos || 0;
+                this.limitInput.value = savedValue.limit || 1;
+                this.galleryTypeSelect.value = savedValue.galleryType || '';
+                this.unitTypeSelect.value = savedValue.unitType || 'page';
+                this.actionTypeSelect.value = savedValue.actionType || 'insert';
+                this.isProxyCheckbox.checked = savedValue.isProxy || false;
+                console.log('Options loaded from sessionStorage');
+                
             });
         }
 
         async searchAccountFromSite() {
             const values = this._getValueFromUsers();
 
-            if(!(this.GID && this.nickname && this.limit <= 1000)) {
+            if(!(this.GID && this.limit <= 1000)) {
                 alert('유효한 값을 입력하세요.');
                 return;
             }
@@ -298,7 +301,7 @@
                                 </a>
                             </td>
                             <td>
-                                <a href='https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.GID}&no=${result.no}' target="_blank">
+                                <a href='https://gall.dcinside.com/${this.galleryTypeSelect.value}board/view/?id=${this.GID}&no=${result.no}' target="_blank">
                                     ${result.no}
                                 </a>
                             </td>

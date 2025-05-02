@@ -40,7 +40,6 @@ module.exports = class collectDAO {
         let connection;
         try {
             connection = await pool.getConnection();
-            //await connection.execute(`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`);
             await connection.execute(`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
             await connection.beginTransaction();
 
@@ -142,7 +141,9 @@ module.exports = class collectDAO {
 
         const query = `
             SELECT postNum, galleryCODE
-            FROM post_list`;
+            FROM post_list 
+            WHERE galleryCODE = 'ujacha'
+            LIMIT 10000`;
 
         const [rows] = await connection.execute(query);
 
@@ -152,16 +153,35 @@ module.exports = class collectDAO {
     }
 
     async deletePostInDB(postNum, galleryCODE) {
-        const connection = await pool.getConnection();
-
-        const query = `
+        const queryPost = `
             DELETE FROM post_list
-            WHERE postNum = ${postNum} 
-            AND galleryCODE = ${galleryCODE}`;
+            WHERE postNum = ? 
+            AND galleryCODE = ?`;
+        
+        const queryComment = `
+            DELETE FROM comment_list
+            WHERE postNum = ?
+            AND galleryCODE = ?`;
 
-        await connection.execute(query);
+        let connection;
+        try {
+            connection = await pool.getConnection();
+            await connection.beginTransaction();
 
-        connection.release();
+            await connection.execute(queryPost, [postNum, galleryCODE]);
+            await connection.execute(queryComment, [postNum, galleryCODE]);
+
+            await connection.commit();
+        } catch (error) { 
+            console.error("Error in deletePostInDB:", error);
+            if(connection) {
+                await connection.rollback();
+            }
+        } finally {
+            if (connection) {
+                connection.release(); // 성공/실패 여부와 관계없이 커넥션 반환
+            }
+        }
     }
 
     async runRaceConditionTest(testFunction) {

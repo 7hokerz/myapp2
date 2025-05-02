@@ -62,13 +62,12 @@ const excludeList = [
 ];
 
 module.exports = class filenameService {
-    headers = {
+    headers_des_chrome = {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
         'Accept-Language': 'ko-KR,ko;q=0.9',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'max-age=0',
         'Connection': 'keep-alive',
-        'Cookie': 'used_darkmode=1; darkmode=1; alarm_popup=1; ck_img_view_cnt=4;',
         'Host': 'gall.dcinside.com',
         'Pragma': 'no-cache',
         'Referer': 'https://www.dcinside.com/',
@@ -77,7 +76,8 @@ module.exports = class filenameService {
         'Sec-Fetch-Site': 'origin',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Chromium";v="134", " Not A;Brand";v="24", "Google Chrome";v="134"',
+        'User-Agent': '',
+        'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
         'sec-ch-ua-mobile': '?0',
         'sec-ch-ua-platform': 'Windows',
     };
@@ -111,7 +111,7 @@ module.exports = class filenameService {
 
     async _getPostsFromSite() { // des
         const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', this.headers);
+            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', {...this.headers_des_chrome});
         const html = response.data;
         const $ = cheerio.load(html);
         
@@ -149,7 +149,7 @@ module.exports = class filenameService {
                 batch.map(async (no) => {
                     try {
                         const response = await this.fetchUtil.axiosFetcher(
-                            URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no), 'GET', this.headers);
+                            URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no), 'GET', {...this.headers_des_chrome});
                         return { no, response: response };
                     } catch (error) {
                         return { no, reason: error };

@@ -4,6 +4,17 @@
         <input type="text" id="galleryId">
     </p>
 
+    <p> 동작 타입:
+        <select id="action-type">
+            <option value="insert" >
+                삽입
+            </option>
+            <option value="delete" >
+                비교
+            </option>
+        </select>
+    </p>
+
     <p> 검색 타입:
         <select id="search-type">
             <option value="search_all" 
@@ -34,10 +45,10 @@
         >
     </p>
     <p> UID (식별코드): 
-        <input type="text" id="uid">
+        <input type="text" id="uid" disabled>
     </p>
-    <p> pos (URL의 search_pos 값(양수)): 
-        <input type="number" id="pos" step="10000" value="0">
+    <p> pos (URL의 search_pos 값(양수)) 또는 시작 페이지: 
+        <input type="number" id="pos" step="10000" value="1">
     </p>
 
     <p> 단위:
@@ -45,7 +56,9 @@
             <option value="page">
                 페이지
             </option>
-            <option value="position">
+            <option value="position"
+                <%= type === 'search_all' ? 'disabled' : '' %>
+            >
                 포지션
             </option>
         </select>
