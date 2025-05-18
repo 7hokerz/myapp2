@@ -1,5 +1,6 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
+const { headers_des_chrome, headers_mob_chrome_gallog } = require('../config/apiHeader');
 const { SELECTORS, URL_PATTERNS } = require('../config/const');
 
 module.exports = class deleteMyPostsService {
@@ -24,7 +25,7 @@ module.exports = class deleteMyPostsService {
     }
 
     async deletePostsOrComments() {
-        const url = URL_PATTERNS.USER_POST_COMMENT_LIST(this.id, this.type, this.cno, this.page);
+        const url = URL_PATTERNS.USER_GALLOG_POST_COMMENT_LIST(this.id, this.type, this.cno, this.page);
         const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers);
 
         const html = response.data;

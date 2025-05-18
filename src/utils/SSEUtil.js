@@ -1,7 +1,7 @@
 
 module.exports = class SSEController {
 
-    init(request, response) {
+    constructor(request, response) {
         this.response = response;
         this.request = request;
     }

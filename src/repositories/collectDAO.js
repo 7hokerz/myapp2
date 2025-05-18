@@ -15,26 +15,25 @@ module.exports = class collectDAO {
         connection.release();
     }
 
-    async insertPostCommentNo(mode, identityCode, postNum, galleryCODE) {
-        const tableName = (mode) ? 'post_list' : 'comment_list';
+    async insertPostNo(item, galleryCode) {
+        const { uid: identityCode, no: postNum } = item;
 
         const checkQuery = `
-            SELECT postNum FROM ${tableName} 
+            SELECT postNum FROM post_list p 
             JOIN fixed_name_list f
-            ON f.identityCode = ${tableName}.identityCode
-                AND f.galleryCODE = ${tableName}.galleryCODE
+            ON f.identityCode = p.identityCode
+                AND f.galleryCODE = p.galleryCODE
             WHERE f.identityCode = ? 
                 AND f.galleryCODE = ?
-                AND f.is_valid = 0
             ORDER BY postNum ASC
-            FOR UPDATE`;// 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호
+            FOR UPDATE`;// 해당 갤러리 코드와 식별 코드가 일치하는 게시물 번호 (is_valid도 같이 가져오기)
 
-        const insertQuery = `
-            INSERT INTO ${tableName} (postNum, identityCode, galleryCODE)
+        const insertPostQuery = `
+            INSERT INTO post_list (postNum, identityCode, galleryCODE)
             VALUES(?, ?, ?)`;
 
-        const updateQuery = `
-            UPDATE ${tableName} SET postNum = ?
+        const updatePostQuery = `
+            UPDATE post_list SET postNum = ?
             WHERE postNum = ? AND identityCode = ? AND galleryCODE = ?`;
 
         let connection;
@@ -43,17 +42,17 @@ module.exports = class collectDAO {
             await connection.execute(`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
             await connection.beginTransaction();
 
-            const [rows] = await connection.execute(checkQuery, [identityCode, galleryCODE]);
+            const [rows] = await connection.execute(checkQuery, [identityCode, galleryCode]);
 
             const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증
 
             if(!isDuplicate) {
                 if(rows.length < 2) {
-                    await connection.execute(insertQuery, [postNum, identityCode, galleryCODE]); 
+                    await connection.execute(insertPostQuery, [postNum, identityCode, galleryCode]); 
                 } else {
                     const smallestPostNum = rows[0].postNum;
                     if(postNum > smallestPostNum) {
-                        await connection.execute(updateQuery, [postNum, smallestPostNum, identityCode, galleryCODE]);
+                        await connection.execute(updatePostQuery, [postNum, smallestPostNum, identityCode, galleryCode]);
                     }
                 }
             } 
@@ -63,8 +62,62 @@ module.exports = class collectDAO {
             console.error("Error in insertPostCommentNo:", error);
             if(connection) {
                 await connection.rollback();
+            }// 데드락 발생 시 재시도하는 로직 필요
+        } finally {
+            if (connection) {
+                connection.release(); // 성공/실패 여부와 관계없이 커넥션 반환
             }
-            // 데드락 발생 시 재시도하는 로직 필요
+        }
+    }
+
+    async insertCommentNo(item, galleryCode) {
+        const { uid: identityCode, no: postNum, commentNum } = item;
+        const checkQuery = `
+            SELECT postNum FROM comment_list c
+            JOIN fixed_name_list f
+            ON f.identityCode = c.identityCode
+                AND f.galleryCODE = c.galleryCODE
+            WHERE f.identityCode = ? 
+                AND f.galleryCODE = ?
+            ORDER BY postNum ASC
+            FOR UPDATE`;
+
+        const insertCommentQuery = `
+            INSERT INTO comment_list (postNum, identityCode, galleryCODE, commentNum)
+            VALUES(?, ?, ?, ?)`;
+
+        const updateCommentQuery = `
+            UPDATE comment_list SET postNum = ?, commentNum = ?
+            WHERE postNum = ? AND identityCode = ? AND galleryCODE = ?`;
+
+        let connection;
+        try {
+            connection = await pool.getConnection();
+            await connection.execute(`SET TRANSACTION ISOLATION LEVEL READ COMMITTED`);
+            await connection.beginTransaction();
+            
+            const [rows] = await connection.execute(checkQuery, [identityCode, galleryCode]);
+
+            const isDuplicate = rows.some(row => row.postNum == postNum) // 중복 번호 검증
+
+            if(!isDuplicate) {
+                if(rows.length < 2) {
+                    await connection.execute(insertCommentQuery, [
+                        postNum, identityCode, galleryCode, commentNum]); 
+                } else {
+                    const smallestPostNum = rows[0].postNum;
+                    if(postNum > smallestPostNum) {
+                        await connection.execute(updateCommentQuery, [
+                            postNum, commentNum, smallestPostNum, identityCode, galleryCode]);
+                    }
+                }
+            } 
+            await connection.commit();
+            
+        } catch (error) {
+            if(connection) {
+                await connection.rollback();
+            }
         } finally {
             if (connection) {
                 connection.release(); // 성공/실패 여부와 관계없이 커넥션 반환
@@ -83,7 +136,8 @@ module.exports = class collectDAO {
             JOIN post_list p
             ON f.identityCode = p.identityCode
             AND f.galleryCODE = p.galleryCODE
-            WHERE f.identityCode IN (?)`;
+            WHERE f.is_valid = 0
+            AND f.identityCode IN (?)`;
 
             const queryComment = `
             SELECT f.identityCode, c.galleryCODE, c.postNum
@@ -91,7 +145,8 @@ module.exports = class collectDAO {
             JOIN comment_list c
             ON f.identityCode = c.identityCode
             AND f.galleryCODE = c.galleryCODE
-            WHERE f.identityCode IN (?)`;
+            WHERE f.is_valid = 0
+            AND f.identityCode IN (?)`;
             
             const [rowsPost] = await connection.query(queryPost, [uidsArray]);
 
@@ -114,7 +169,7 @@ module.exports = class collectDAO {
             SELECT DISTINCT identityCode
             FROM fixed_name_list
             WHERE is_valid = 0
-            ORDER BY 1 ASC`;
+            ORDER BY 1 DESC`;
 
         const [rows] = await connection.execute(query);
 
@@ -136,23 +191,23 @@ module.exports = class collectDAO {
         connection.release();
     }
 
-    async getAllPosts() {
+    async getAllPosts(galleryCode) {
         const connection = await pool.getConnection();
 
         const query = `
-            SELECT postNum, galleryCODE
-            FROM post_list 
-            WHERE galleryCODE = 'ujacha'
-            LIMIT 10000`;
+            SELECT postNum
+            FROM post_list
+            WHERE galleryCODE = ?
+            ORDER BY postNum DESC`;
 
-        const [rows] = await connection.execute(query);
+        const [rows] = await connection.execute(query, [galleryCode]);
 
         connection.release();
 
         return rows;
     }
 
-    async deletePostInDB(postNum, galleryCODE) {
+    async deletePostInDB(postNum, galleryCode) {
         const queryPost = `
             DELETE FROM post_list
             WHERE postNum = ? 
@@ -168,8 +223,8 @@ module.exports = class collectDAO {
             connection = await pool.getConnection();
             await connection.beginTransaction();
 
-            await connection.execute(queryPost, [postNum, galleryCODE]);
-            await connection.execute(queryComment, [postNum, galleryCODE]);
+            await connection.execute(queryPost, [postNum, galleryCode]);
+            await connection.execute(queryComment, [postNum, galleryCode]);
 
             await connection.commit();
         } catch (error) { 
@@ -179,7 +234,28 @@ module.exports = class collectDAO {
             }
         } finally {
             if (connection) {
-                connection.release(); // 성공/실패 여부와 관계없이 커넥션 반환
+                connection.release();
+            }
+        }
+    }
+
+    async deleteCommentInDB(commentNum, galleryCode) {
+        const queryComment = `
+            DELETE FROM comment_list
+            WHERE commentNum = ?
+            AND galleryCODE = ?`;
+
+        let connection;
+        try {
+            connection = await pool.getConnection();
+
+            await connection.execute(queryComment, [commentNum, galleryCode]);
+
+        } catch (error) { 
+            console.error("Error in deleteCommentInDB:", error);
+        } finally {
+            if (connection) {
+                connection.release();
             }
         }
     }
@@ -226,5 +302,10 @@ module.exports = class collectDAO {
 
 
 /*
+게시글, 댓글 분리 로직 필요
+
+
+
+
 
 */

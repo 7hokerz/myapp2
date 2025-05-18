@@ -132,9 +132,7 @@ post_list_cur(
 
 2. INSERT
 
-3. UPDATE 
-
-프로시저로 1~1000까지 insert
+프로시저로 1~1000까지 insert (순차적)
 
 ```SQL
     DELIMITER $$ 
@@ -154,6 +152,13 @@ post_list_cur(
     CALL myFunction;
 ```
 
+차이 없음?
+
+
+3. UPDATE 
+
+프로시저로 1~1000까지 insert (순차적)
+
 ```SQL
     SET profiling = 1;
 
@@ -167,15 +172,53 @@ post_list_cur(
     SET profiling = 0;
 ```
 
+결과(Query 2: 복합 PK, Query 4: AI PK)
+
+복합 PK보다 **AI PK**에서 더욱 빠른 속도를 보임. (약 2배)
+
+
+
 4. DELETE
 
+프로시저로 1~1000까지 insert (순차적)
 
+```SQL
+    SET profiling = 1;
 
+    DELETE FROM post_list (or post_list_prev)
+    WHERE identityCode = 'wamdy' 
+    AND galleryCODE = 'grsgills';
 
+    SHOW PROFILES;
 
+    SET profiling = 0;
+```
 
+결과(Query 2: 복합 PK, Query 4: AI PK)
 
+두 PK 구조에서 큰 차이를 확인할 수 없었음.?? 다른 상황에서도 테스트 필요
+```SQL
+DELIMITER $$ 
+DROP PROCEDURE IF EXISTS myFunction$$
+CREATE PROCEDURE myFunction() -- ⓐ myFunction이라는 이름의 프로시져
+BEGIN
+    DECLARE i INT DEFAULT 1; -- ⓑ i변수 선언, defalt값으로 1설정
+    DECLARE v INT DEFAULT 1;
+    DECLARE startTime DATETIME(6); -- (6)은 마이크로초 단위까지 정밀도 지정
+    DECLARE endTime DATETIME(6);
+    SET startTime = NOW(6); -- 프로시저 시작 시간 기록
+    WHILE (i <= 1000) DO -- ⓒ for문 작성(i가 1000이 될 때까지 반복)
+		SET v = v + FLOOR(1 + RAND() * 5);
+        INSERT INTO post_list_prev (postNum, identityCode, galleryCODE) VALUE (v, 'wamdy', 'grsgills'); -- ⓓ 테이블에 i값 넣어주기
+        SET i = i + 1; -- ⓔ i값에 1더해주고 WHILE문 처음으로 이동
+    END WHILE;
+    SET endTime = NOW(6); -- 프로시저 종료 시간 기록
+    SELECT
+        startTime AS ProcedureStartTime,
+        endTime AS ProcedureEndTime,
+        TIMEDIFF(endTime, startTime) AS TotalDuration;
+END$$
+DELIMITER ;
 
-
-
-+ post_list에서 PK를 id로 잡았으니 comment_list에서 해당 PK를 FK로 설정하면 좋지 않ㅇ르까?
+CALL myFunction;
+```

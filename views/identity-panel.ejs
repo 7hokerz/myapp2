@@ -12,7 +12,7 @@
 <div id="ids">없음</div>
 
 <h2>DB에 저장된 고닉</h2>
-<input type="button" id="delete-garbage" value="UID 유효성 검사" >
+<input type="button" id="uid-is-valid" value="UID 유효성 검사" >
 <input type="button" id="post-is-valid" value="게시글 유효성 검사" >
 <table>
     <thead>
@@ -21,6 +21,7 @@
             <th>갤러리 명</th>
             <th>링크1 (DB)</th>
             <th>링크2 (스캔한 갤러리)</th>
+            <th>복사하기</th>
         </tr>
     </thead>
     <tbody id="nicks">
@@ -46,7 +47,7 @@
             MODE_SELECT: 'mode',
             TYPE_SELECT: 'search-type',
             UNIT_TYPE_SELECT: 'unit-type',
-            DELETE_GARBAGE_BTN: 'delete-garbage',
+            CHECK_UID_VALID_BTN: 'uid-is-valid',
             SAVE_OPTIONS_BTN: 'save-options',
             NICK_COUNT_SPAN: 'nick-count'
         };
@@ -93,7 +94,7 @@
             this.actionTypeSelect = document.getElementById('action-type');
             this.searchBtn = document.getElementById(IndexPage.EL_IDS.SEARCH_BTN);
             this.stopBtn = document.getElementById(IndexPage.EL_IDS.STOP_BTN);
-            this.deleteGarbageBtn = document.getElementById(IndexPage.EL_IDS.DELETE_GARBAGE_BTN);
+            this.chkUidValidBtn = document.getElementById(IndexPage.EL_IDS.CHECK_UID_VALID_BTN);
             this.saveOptionsBtn = document.getElementById(IndexPage.EL_IDS.SAVE_OPTIONS_BTN);
             this.deletePostIsValidBtn = document.getElementById('post-is-valid');
         }
@@ -134,7 +135,8 @@
             this.actionTypeSelect.disabled = isSearching;
             this.searchBtn.disabled = isSearching;
             this.stopBtn.disabled = !isSearching;
-            this.deleteGarbageBtn.disabled = isSearching;
+            this.chkUidValidBtn.disabled = isSearching;
+            this.deletePostIsValidBtn.disabled = isSearching;
         }
 
         _addEventListeners() {
@@ -143,9 +145,35 @@
 
             this.searchBtn.addEventListener('click', () => this.searchAccountFromSite());
             this.stopBtn.addEventListener('click', () => this.stopSearch());
-            this.deleteGarbageBtn.addEventListener('click', () => this.clearDeleted());
             this.saveOptionsBtn.addEventListener('click', () => this._saveOptionsToSessionStorage());
             this.deletePostIsValidBtn.addEventListener('click', () => this.chkPostIsValid());
+            this.chkUidValidBtn.addEventListener('click', () => this.chkUIDIsValid());
+            this.nicksTbody.addEventListener('click', async (event) => {
+                if (event.target.classList.contains('copy-btn')) {
+                    const button = event.target;
+                    const uid = button.dataset.uid;
+                    const gid = button.dataset.gid;
+                    const postNum = button.dataset.postnum;
+                    const no = button.dataset.no;
+
+                    const textToCopy = 
+                    `https://gall.dcinside.com/board/view/?id=${gid}&no=${postNum} https://gall.dcinside.com/${this.galleryTypeSelect.value}board/view/?id=${this.GID}&no=${no} ${uid}`;
+
+                    try {
+                        await navigator.clipboard.writeText(textToCopy);
+
+                        const originalText = button.textContent;
+                        button.textContent = '복사됨!';
+                        setTimeout(() => {
+                            button.textContent = originalText;
+                        }, 1500);
+                        console.log('데이터가 클립보드에 복사되었습니다.');
+                    } catch (error) {
+                        console.error('클립보드 복사 실패:', err);
+                        alert('클립보드 복사에 실패했습니다.');
+                    }
+                }
+            });
         }
 
         _updateUrlAndReload() {
@@ -183,7 +211,7 @@
         _loadOptionsFromSessionStorage() {
             document.addEventListener('DOMContentLoaded', () => {
                 const savedValue = JSON.parse(sessionStorage.getItem('inputs'));
-                
+                if(savedValue === null) return;
                 this.galleryIdInput.value = savedValue.GID || '';
                 this.nicknameInput.value = savedValue.nickname || '';
                 this.keywordInput.value = savedValue.keyword || '';
@@ -230,8 +258,10 @@
                     } catch (e) { /* Ignore if response body is not JSON */ }
                     throw new Error(errorMsg);
                 }
-
+                const payload = await response.json();
+                console.log('Search initiation response:', payload);
                 // 2. Setup SSE listener
+                this.jobId = payload.jobId;
                 this._setupSSEListener();
 
             } catch (error) {
@@ -246,7 +276,7 @@
                 this.eventSource.close();
             }
 
-            this.eventSource = new EventSource(IndexPage.API_PATHS.USER_COLLECT);
+            this.eventSource = new EventSource(`${IndexPage.API_PATHS.USER_COLLECT}?jobId=${this.jobId}`);
 
             this.eventSource.addEventListener('status', (event) => {
                 try {
@@ -305,6 +335,13 @@
                                     ${result.no}
                                 </a>
                             </td>
+                            <td>
+                                <button class="copy-btn"
+                                    data-uid="${result.uid}"
+                                    data-gid="${result.GID}"
+                                    data-postnum="${result.postNum}"
+                                    data-no="${result.no}">복사</button>
+                            </td>
                         </tr>`;
                     });
 
@@ -343,7 +380,7 @@
 
             try {
                 const mode = this.modeSelect.value;
-                const response = await fetch(`${IndexPage.API_PATHS.USER_STOP}?mode=${mode}`);
+                const response = await fetch(`${IndexPage.API_PATHS.USER_STOP}?mode=${mode}&jobId=${this.jobId}`);
                 if (!response.ok) {
                     throw new Error(`서버 응답 오류 (${response.status})`);
                 }
@@ -355,50 +392,37 @@
                 this._updateStatus(`<p style="color: red;"> 중지 요청 실패: ${error.message} </p>`, true);
             }
         }
-        
-        async clearDeleted() {
-            const values = this._getValueFromUsers();
-            if (!values.GID) {
-                this._updateStatus('<p style="color: red;">갤러리 ID를 입력하세요.</p>');
-                this.galleryIdInput.focus();
-                return;
-            }
-            console.log(`Deleting garbage for gallery ID: ${values.GID}`);
-            this._setInputStatus(true);
-            this._updateStatus(`<p>갤러리 [${values.GID}]의 삭제된 데이터 정리 요청 중...</p>`);
-
-            try {
-                const response = await fetch(`${IndexPage.API_PATHS.NICKNAME_LIST}?galleryid=${values.GID}`, {
-                    method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                if (!response.ok) {
-                    let errorMsg = `정리 요청 실패 (${response.status}).`;
-                    try {
-                        const errorData = await response.json();
-                        errorMsg += ` 메시지: ${errorData.message || response.statusText}`;
-                    } catch (e) { /* Ignore if response body is not JSON */ }
-                    throw new Error(errorMsg);
-                }
-
-                const payload = await response.json();
-                console.log('Clear deleted response:', payload);
-                this._updateStatus(`<p>정리 작업 완료. 결과: ${JSON.stringify(payload)}</p>`, true);
-
-            } catch (error) {
-                console.error('Error clearing deleted data:', error);
-                this._updateStatus(`<p style="color: red;"> 정리 작업 실패: ${error.message} </p>`, true);
-            } finally {
-                this._setInputStatus(false);
-            }
-        }
     
         async chkPostIsValid() {
+            const values = this._getValueFromUsers();
+
+            if(!(this.GID)) {
+                alert('유효한 값을 입력하세요.');
+                return;
+            }
+
+            this._setInputStatus(true);
+            this.idsDiv.innerHTML = '';
+            this.nicksTbody.innerHTML = '';
+            this.nickCount = 0; // Reset count
+            this.statusDiv.innerHTML = '';
+            if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
+
             try {
-                const response = await fetch(`/api/post-list`, {
+                const response1 = await fetch(IndexPage.API_PATHS.CLIENT_INPUT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(values)
+                });
+
+                const payload1 = await response1.json();
+                console.log('Search initiation response:', payload1);
+                
+                this.jobId = payload1.jobId;
+
+                const response = await fetch(`/api/post-list?jobId=${this.jobId}`, {
                     method: 'DELETE',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
                 });
 
                 if (!response.ok) {
@@ -416,6 +440,59 @@
 
             } catch (error) {
                 console.error('Error checking post validity:', error);
+                this._updateStatus(`<p style="color: red;"> 검사 작업 실패: ${error.message} </p>`, true);
+            } finally {
+                this._setInputStatus(false);
+            }
+        }
+
+        async chkUIDIsValid() {
+            const values = this._getValueFromUsers();
+
+            if(!(this.GID)) {
+                alert('유효한 값을 입력하세요.');
+                return;
+            }
+
+            this._setInputStatus(true);
+            this.idsDiv.innerHTML = '';
+            this.nicksTbody.innerHTML = '';
+            this.nickCount = 0; // Reset count
+            this.statusDiv.innerHTML = '';
+            if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
+
+            try {
+                const response1 = await fetch(IndexPage.API_PATHS.CLIENT_INPUT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(values)
+                });
+
+                const payload1 = await response1.json();
+                console.log('Search initiation response:', payload1);
+                
+                this.jobId = payload1.jobId;
+
+                const response = await fetch(`/api/nickname-list?jobId=${this.jobId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+
+                if (!response.ok) {
+                    let errorMsg = `검사 요청 실패 (${response.status}).`;
+                    try {
+                        const errorData = await response.json();
+                        errorMsg += ` 메시지: ${errorData.message || response.statusText}`;
+                    } catch (e) { /* Ignore if response body is not JSON */ }
+                    throw new Error(errorMsg);
+                }
+
+                const payload = await response.json();
+                console.log('UID validity check response:', payload);
+                this._updateStatus(`<p>검사 작업 완료. 결과: ${JSON.stringify(payload)}</p>`, true);
+
+            } catch (error) {
+                console.error('Error checking UID validity:', error);
                 this._updateStatus(`<p style="color: red;"> 검사 작업 실패: ${error.message} </p>`, true);
             } finally {
                 this._setInputStatus(false);

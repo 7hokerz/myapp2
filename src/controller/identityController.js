@@ -1,81 +1,146 @@
 const SSEUtil = require('../utils/SSEUtil');
-const identityService = require('../services/identityService');
-const checkService = require('../services/checkService');
+const IdentityService = require('../services/identityService');
+const CheckService = require('../services/checkService');
+const jobManager = require('../utils/jobUtil');
 
 module.exports = class identityController {
-    SSEUtil = new SSEUtil();
-    constructor() {
-        
-    }
-
-    async init(req, res) {
-        const { 
-            galleryType, 
-            GID: galleryId, 
-            nickname, 
-            keyword, 
-            type, 
-            UID: id, 
-            pos, 
-            limit,
-            unitType,
-            actionType,
-            isProxy, 
-        } = req.body;
-
-        let content = null;
-        switch (type) {
-            case 'search_name':
-                content = nickname;
-                break;
-            case 'search_subject_memo':
-                content = keyword;
-                break;
-        }
-        
-        this.identityService = new identityService({
-            SSEUtil: this.SSEUtil, 
-            galleryType: galleryType, 
-            galleryId: galleryId, 
-            limit: limit, 
-            pos: pos, 
-            content: content, 
-            type: type, 
-            id: id, 
-            unitType: unitType,
-            actionType: actionType,
-            isProxy: isProxy,
-        });
-    }
+    constructor() {}
     
     async getNicknameFromSite(req, res) { 
-        this.SSEUtil.init(req, res);
-        this.SSEUtil.SSEInitHeader();
+        const { jobId } = req.query;
+        const jobData = jobManager.getJob(jobId); 
 
+        const sseUtil = new SSEUtil(req, res);
+        sseUtil.SSEInitHeader();
+
+        let identityService = null;
         try {
-            await this.identityService.process();
+            const { 
+                galleryType, 
+                GID: galleryId, 
+                nickname, 
+                keyword, 
+                type, 
+                UID: id, 
+                pos, 
+                limit,
+                unitType,
+                actionType,
+                isProxy, 
+            } = jobData.parameters;
 
-            this.SSEUtil.SSESendEvent('complete', '');
+            let content = null;
+            switch (type) {
+                case 'search_name':
+                    content = nickname;
+                    break;
+                case 'search_subject_memo':
+                    content = keyword;
+                    break;
+            }
+
+            identityService = new IdentityService({
+                SSEUtil: sseUtil, 
+                galleryType: galleryType, 
+                galleryId: galleryId, 
+                limit: limit, 
+                pos: pos, 
+                content: content, 
+                type: type, 
+                id: id, 
+                unitType: unitType,
+                actionType: actionType,
+                isProxy: isProxy,
+            });
+
+            jobManager.updateJobStatus(jobId, identityService, "executing");
+
+            await identityService.process();
+
+            sseUtil.SSESendEvent('complete', '');
         } catch (error) {
             console.error('Error during nickname collection:', error);
         } finally {
-            this.SSEUtil.SSEendEvent();
+            sseUtil.SSEendEvent();
+            jobManager.deleteJob(jobId); // 작업 완료 후 job 삭제
         }
     }
 
-    async chkPostExists() {
-        this.checkService = new checkService();
-        await this.checkService.chkPostExists();
+    async chkPostExists(req, res) {
+        const { jobId } = req.query;
+        const jobData = jobManager.getJob(jobId); 
+
+        const sseUtil = new SSEUtil(req, res);
+        sseUtil.SSEInitHeader();
+
+        let checkService = null;
+        try {
+            const { 
+                galleryType, 
+                GID: galleryId, 
+                isProxy,
+            } = jobData.parameters;
+
+            checkService = new CheckService({
+                SSEUtil: this.SSEUtil, 
+                galleryType: galleryType,
+                galleryId: galleryId,
+                isProxy: isProxy,
+            });
+
+            jobManager.updateJobStatus(jobId, checkService, "executing");
+
+            await checkService.chkPostExists();
+
+            //sseUtil.SSESendEvent('complete', '');
+        } catch (error) {
+            console.error('Error checking post existence:', error);
+        } finally {
+            //sseUtil.SSEendEvent();
+            jobManager.deleteJob(jobId); // 작업 완료 후 job 삭제
+        }
     }
 
-    async chkUIDisValid() {
-        this.checkService = new checkService();
-        await this.checkService.chkUIDisValid();
+    async chkUIDisValid(req, res) {
+        const { jobId } = req.query;
+        const jobData = jobManager.getJob(jobId);
+
+        const sseUtil = new SSEUtil(req, res);
+        sseUtil.SSEInitHeader();
+
+        let checkService = null;
+        try {
+            const { 
+                galleryType, 
+                GID: galleryId, 
+                isProxy,
+            } = jobData.parameters;
+
+            checkService = new CheckService({
+                SSEUtil: this.SSEUtil, 
+                galleryType: galleryType,
+                galleryId: galleryId,
+                isProxy: isProxy,
+            });
+
+            jobManager.updateJobStatus(jobId, checkService, "executing");
+
+            await checkService.chkUIDisValid();
+
+            //sseUtil.SSESendEvent('complete', '');
+        } catch (error) {
+            console.error('Error checking UID existence:', error);
+        } finally {
+            //sseUtil.SSEendEvent();
+            jobManager.deleteJob(jobId); // 작업 완료 후 job 삭제
+        }
     }
 
-    stopSearch() {
-        if (this.identityService) {
-            this.identityService.requestStop(); // 서비스에 중지 요청
+    async stopSearch(req, res) {
+        const { jobId } = req.query;
+        const { instance } = jobManager.getJob(jobId); 
+        if (instance) {
+            instance.requestStop();
             console.log("작업 중지 요청됨. 대기중...");
         }
     }

@@ -1,11 +1,13 @@
 const cheerio = require('cheerio');
 const fetchUtil = require('../utils/fetchUtil');
 const { SELECTORS, URL_PATTERNS } = require('../config/const');
+const { headers_des_chrome, headers_mob_chrome } = require('../config/apiHeader');
 
 const galleryList = [
-    'fancam', 
+    'fan',
     'savecam',
     'un-',
+    'jjik',
     'grsgills', 
     'girl',
     'group',
@@ -62,25 +64,7 @@ const excludeList = [
 ];
 
 module.exports = class filenameService {
-    headers_des_chrome = {
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'ko-KR,ko;q=0.9',
-        'Cache-Control': 'max-age=0',
-        'Connection': 'keep-alive',
-        'Host': 'gall.dcinside.com',
-        'Pragma': 'no-cache',
-        'Referer': 'https://www.dcinside.com/',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'origin',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': '',
-        'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': 'Windows',
-    };
+    stopFlag = true;
     postNoSet = new Set();
     
     constructor({
@@ -94,24 +78,34 @@ module.exports = class filenameService {
         this.startPage = startPage;
     }
 
+    requestStop() {
+        this.stopFlag = true;
+    }
+
     async getFilenameFromSite() {
-        await this._getPostsFromSite();
-        await this._getFilenameFromPosts();
-        this.postNoSet.clear();
-        this.restPage--;
-        this.startPage++;
-        
-        return {
-            status: {
+        this.stopFlag = false;
+
+        while(!(this.stopFlag)) {
+            await this._getPostsFromSite();
+            await this._getFilenameFromPosts();
+            this.postNoSet.clear();
+            this.restPage--;
+            this.startPage++;
+            
+            const status = {
                 restPage: this.restPage,
                 curPage: this.startPage,
             }
+
+            this.SSEUtil.SSESendEvent('status', status);
+
+            if(status.restPage < 1) this.stopFlag = true;
         }
     }
 
     async _getPostsFromSite() { // des
         const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', {...this.headers_des_chrome});
+            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.startPage), 'GET', {...headers_des_chrome});
         const html = response.data;
         const $ = cheerio.load(html);
         
@@ -142,14 +136,14 @@ module.exports = class filenameService {
             각 요청마다 요청 시작 시간이 다름.
         */
         while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 25; 
+            let batchSize = Math.floor(Math.random() * 5) + 20; 
             const batch = currentQueue.splice(0, batchSize);
 
             const results = await Promise.allSettled(
                 batch.map(async (no) => {
                     try {
                         const response = await this.fetchUtil.axiosFetcher(
-                            URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no), 'GET', {...this.headers_des_chrome});
+                            URL_PATTERNS.POST_DES(this.galleryType, this.galleryId, no), 'GET', {...headers_des_chrome});
                         return { no, response: response };
                     } catch (error) {
                         return { no, reason: error };
@@ -162,7 +156,7 @@ module.exports = class filenameService {
             });
 
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 1000) + 1000);
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 750 + 1000));
             }
         }
     }
@@ -195,7 +189,7 @@ module.exports = class filenameService {
         const url = `
         https://m.dcinside.com/board/${this.galleryId}?page=${this.startPage}`;
 
-        const response = await this.fetchUtil.axiosFetcher(url, 'GET', this.headers_mob, 1);
+        const response = await this.fetchUtil.axiosFetcher(url, 'GET', {...headers_mob_chrome}, 1);
         const html = response.data;
         const $ = cheerio.load(html);
 

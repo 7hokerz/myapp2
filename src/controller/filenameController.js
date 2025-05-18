@@ -1,50 +1,62 @@
 
 const SSEUtil = require('../utils/SSEUtil');
-const filenameService = require('../services/filenameService');
+const FilenameService = require('../services/filenameService');
+const jobManager = require('../utils/jobUtil');
 
 module.exports = class filenameController {
-    stopFlag = true;
-    SSEUtil = new SSEUtil();
     constructor() {
         
     }
 
-    async init(req, res) {
-        const { galleryType, GID: galleryId, limit, startPage, isProxy } = req.body;
-        
-        this.filenameService = new filenameService(
-            {
-                SSEUtil: this.SSEUtil, 
+    async getFilenameFromSite(req, res) {
+        const { jobId } = req.query;
+        const jobData = jobManager.getJob(jobId); 
+
+        const sseUtil = new SSEUtil(req, res);
+        sseUtil.SSEInitHeader();
+
+        let filenameService = null;
+        try {
+            const { 
+                galleryType, 
+                GID: galleryId, 
+                startPage,
+                limit,
+                isProxy, 
+            } = jobData.parameters;
+
+            filenameService = new FilenameService({
+                SSEUtil: sseUtil, 
                 galleryType: galleryType, 
                 galleryId: galleryId, 
                 limit: limit, 
                 startPage: startPage, 
                 isProxy: isProxy,
-            }
-        );
-        this.stopFlag = false;
-    }
+            });
 
-    async getFilenameFromSite(req, res) {
-        this.SSEUtil.init(req, res);
-        this.SSEUtil.SSEInitHeader();
-        
-        while(!(this.stopFlag)) {
-            const { status } = await this.filenameService.getFilenameFromSite();
+            jobManager.updateJobStatus(jobId, filenameService, "executing");
 
-            if(status.restPage < 1) this.stopFlag = true;
+            await filenameService.getFilenameFromSite();
 
-            this.SSEUtil.SSESendEvent('status', status);
+            sseUtil.SSESendEvent('complete', '');
+
+            console.log('첨부파일 확인 작업 완료.');
+
+        } catch (error) {
+            console.error('Error during nickname collection:', error);
+        } finally {
+            sseUtil.SSEendEvent();
+            jobManager.deleteJob(jobId); // 작업 완료 후 job 삭제
         }
-        this.SSEUtil.SSESendEvent('complete', '');
-        this.SSEUtil.SSEendEvent();
-
-        console.log('첨부파일 확인 작업 완료.');
     }
 
-    stopSearch() {
-        this.stopFlag = true;
-        console.log("작업 중지 요청됨. 대기중...");
+    async stopSearch(req, res) {
+        const { jobId } = req.query;
+        const { instance } = jobManager.getJob(jobId); 
+        if (instance) {
+            instance.requestStop();
+            console.log("작업 중지 요청됨. 대기중...");
+        }
     }
 }
 

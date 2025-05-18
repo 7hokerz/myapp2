@@ -100,6 +100,10 @@
 
             this.postsTbody.innerHTML = '';
 
+            this.statusDiv1.innerHTML = `
+                <p> 현재 페이지: ${this.startPage}    </p>
+                <p> 남은 페이지: ${this.limit}  </p>`;
+
             try {
                 const response = await fetch(`/api/client-input`, {
                     method: 'POST',
@@ -109,7 +113,6 @@
                         GID: this.GID, 
                         mode: this.mode.value,
                         isProxy: this.isProxy.checked,
-                        isTest: this.isTest.checked,
                         limit: this.limit, 
                         startPage: this.startPage,
                     })
@@ -120,56 +123,98 @@
                     return;
                 }
                 
-                const eventSource = new EventSource(`/api/post/filename`);
-                
-                eventSource.addEventListener('status', (event) => {
-                    const data = JSON.parse(event.data);
-                    this.statusDiv1.innerHTML = `
-                    <p> 현재 페이지: ${data.curPage}    </p>
-                    <p> 남은 페이지: ${data.restPage}  </p>`;
-                });
+                const payload = await response.json();
+                console.log('Search initiation response:', payload);
 
-                eventSource.addEventListener('no', (event) => {
-                    const data = JSON.parse(event.data);
-                    this.statusDiv2.innerHTML = `
-                    <p> 현재 게시물 번호: ${data.no}</p>`;
-                });
-
-                eventSource.addEventListener('post', (event) => {
-                    const data = JSON.parse(event.data);
-                    this.postsTbody.innerHTML += `
-                        <td>
-                            <a href="https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.GID}&no=${data.no}" target="_blank">
-                                ${data.no}
-                            </a>
-                        </td>
-                        <td>${data.filename}</td>`;
-                });
-
-                eventSource.addEventListener('complete', (event) => {
-                    eventSource.close();
-                    
-                    this.statusDiv2.innerHTML += `<p> 작업 완료. </p>`;
-                    this.inputStatus(false);
-                });
-
-                eventSource.onerror = () => {
-                    eventSource.close();
-                    
-                    this.statusDiv2.innerHTML = `<p> 연결 오류 발생. </p>`;
-                    this.inputStatus(false);
-                };
+                this.jobId = payload.jobId;
+                this._setupSSEListener();
             
             } catch (error) {
                 console.error('Error:', error);
+                this._updateStatus(`<p style="color: red;">오류 발생: ${error.message}</p>`, true);
+                this.inputStatus(false);
+            }
+        }
+
+        _setupSSEListener() {
+            if (this.eventSource) {
+                this.eventSource.close();
+            }
+            
+            this.eventSource = new EventSource(`/api/post/filename?jobId=${this.jobId}`);
+                
+            this.eventSource.addEventListener('status', (event) => {
+                const data = JSON.parse(event.data);
+                this.statusDiv1.innerHTML = `
+                <p> 현재 페이지: ${data.curPage}    </p>
+                <p> 남은 페이지: ${data.restPage}  </p>`;
+            });
+            
+            this.eventSource.addEventListener('post', (event) => {
+                const data = JSON.parse(event.data);
+                this.postsTbody.innerHTML += `
+                    <td>
+                        <a href="https://gall.dcinside.com/${this.galleryType}board/view/?id=${this.GID}&no=${data.no}" target="_blank">
+                            ${data.no}
+                        </a>
+                    </td>
+                    <td>${data.filename}</td>`;
+            });
+
+            this.eventSource.addEventListener('no', (event) => {
+                const data = JSON.parse(event.data);
+                this.statusDiv2.innerHTML = `
+                <p> 현재 게시물 번호: ${data.no}</p>`;
+            });
+
+            this.eventSource.addEventListener('complete', (event) => {
+                console.log('SSE stream complete.');
+                this._updateStatus(`<p> 작업 완료. </p>`, true);
+                this._closeSSEConnection();
+                this.inputStatus(false);
+            });
+
+            this.eventSource.onerror = (error) => {
+                console.error('EventSource error:', error);
+                this._updateStatus(`<p style="color: red;"> 데이터 수신 중 오류 발생. </p>`, true);
+                this._closeSSEConnection();
+                this.inputStatus(false);
+            };
+        }
+
+        _updateStatus(message, append = false) {
+            if (append) {
+                this.statusDiv1.innerHTML += message;
+            } else {
+                this.statusDiv1.innerHTML = message;
+            }
+        }
+
+        _closeSSEConnection() {
+            if (this.eventSource) {
+                this.eventSource.close();
+                this.eventSource = null;
+                console.log('EventSource connection closed.');
             }
         }
 
         async stopSearch() {
+            console.log('Stopping search...');
+            this._updateStatus('<p> 중지 요청 중... </p>', true);
+            this.stopBtn.disabled = true;
+
             try {
-                await fetch(`/api/user/stop?mode=${this.mode.value}`); // 서버에 중지 요청
+                const mode = this.mode.value;
+                const response = await fetch(`/api/user/stop?mode=${mode}&jobId=${this.jobId}`);
+                if (!response.ok) {
+                    throw new Error(`서버 응답 오류 (${response.status})`);
+                }
+                this._updateStatus('<p> 중지 요청 성공. </p>', true);
+                console.log('Stop request successful.');
+
             } catch (error) {
-                console.error('Error:', error);
+                console.error('Error stopping search:', error);
+                this._updateStatus(`<p style="color: red;"> 중지 요청 실패: ${error.message} </p>`, true);
             }
         }
     }

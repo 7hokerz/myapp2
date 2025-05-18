@@ -7,6 +7,7 @@ configExpress(app);
 const identityController = require('./controller/identityController');
 const filenameController = require('./controller/filenameController');
 const deleteMyPostsController = require('./controller/deleteMyPostsController');
+const jobManager = require('./utils/jobUtil');
 
 const identitycontroller = new identityController();
 const filenamecontroller = new filenameController();
@@ -14,7 +15,7 @@ const deleteMyPostscontroller = new deleteMyPostsController();
 
 app.get('/', (req, res) => {
     const defaultModeTypeMapping = {
-        'identity': 'search_name',
+        'identity': 'search_all',
         'delete-post': 'posts',
     };
 
@@ -33,10 +34,10 @@ app.get('/api/user/stop', (req, res) => {
     const { mode } = req.query;
     switch (mode) {
         case 'identity':
-            identitycontroller.stopSearch();
+            identitycontroller.stopSearch(req, res);
             break;
         case 'filename':
-            filenamecontroller.stopSearch();
+            filenamecontroller.stopSearch(req, res);
             break;
         case 'delete-post':
             deleteMyPostscontroller.stopSearch();
@@ -64,30 +65,17 @@ app.get('/api/post/filename', async (req, res) => {
 });
 
 app.post('/api/client-input', async (req, res) => { 
-    const { mode } = req.body;
-    switch (mode) {
-        case 'identity':
-            await identitycontroller.init(req, res);
-            break;
-        case 'filename':
-            await filenamecontroller.init(req, res);
-            break;
-        case 'delete-post':
-            await deleteMyPostscontroller.init(req, res);
-            break;
-        default:
-            break;
-    }
-    res.json({ status: 'success' });
+    const jobId = jobManager.addJob(req.body); 
+    res.status(202).json({ jobId: jobId, status: 'pending' });
 });
 
 app.delete('/api/nickname-list', async (req, res) => {
-    await identitycontroller.chkUIDisValid();
+    await identitycontroller.chkUIDisValid(req, res);
     res.json({ status: 'success' });
 });
 
 app.delete('/api/post-list', async (req, res) => {
-    await identitycontroller.chkPostExists();
+    await identitycontroller.chkPostExists(req, res);
     res.json({ status: 'success' });
 });
 
