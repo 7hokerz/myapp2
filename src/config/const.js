@@ -48,6 +48,12 @@ const URL_PATTERNS = Object.freeze({
     USER_GALLOG_MAIN_DES: (uid) => `https://gallog.dcinside.com/${uid}`, // 갤로그 메인
 
     USER_GALLOG_MAIN_MOB: (uid) => `https://m.dcinside.com/gallog/${uid}`, // 갤로그 메인
+
+    USER_GALLOG_WRITE_GUESTBOOK_MOB: () => `https://m.dcinside.com/gallog/guestbook-write`, // 방명록 작성
+
+    ACCESS_MOB: () => `https://m.dcinside.com/ajax/access`, 
+
+    
 }); 
 
 

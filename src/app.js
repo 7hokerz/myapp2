@@ -1,17 +1,23 @@
 const express = require('express');
 const app = express();
 const configExpress = require('./config/express');
-
 configExpress(app);
 
-const identityController = require('./controller/identityController');
-const filenameController = require('./controller/filenameController');
-const deleteMyPostsController = require('./controller/deleteMyPostsController');
 const jobManager = require('./utils/jobUtil');
+const FetchUtil = require('./utils/fetchUtil');
 
-const identitycontroller = new identityController();
-const filenamecontroller = new filenameController();
-const deleteMyPostscontroller = new deleteMyPostsController();
+const CollectDAO = require('./repositories/collectDAO');
+
+const IdentityService = require('./services/identityService');
+const CheckService = require('./services/checkService');
+const FilenameService = require('./services/filenameService');
+
+const IdentityController = require('./controller/identityController');
+const FilenameController = require('./controller/filenameController');
+
+const identityController = new IdentityController(IdentityService, CheckService, new CollectDAO(), FetchUtil);
+const filenameController = new FilenameController(FilenameService, FetchUtil);
+
 
 app.get('/', (req, res) => {
     const defaultModeTypeMapping = {
@@ -30,53 +36,53 @@ app.get('/', (req, res) => {
     });
 });
 
-app.get('/api/user/stop', (req, res) => {
-    const { mode } = req.query;
+app.get('/api/stop/:mode', (req, res) => {
+    const { mode } = req.params;
     switch (mode) {
         case 'identity':
-            identitycontroller.stopSearch(req, res);
+            identityController.stopSearch(req, res);
             break;
         case 'filename':
-            filenamecontroller.stopSearch(req, res);
+            filenameController.stopSearch(req, res);
             break;
         case 'delete-post':
-            deleteMyPostscontroller.stopSearch();
+            deleteMyPostsController.stopSearch(req, res);
             break;
         default:
             break;
     }
-    res.json({ message: '검색 중지 요청 완료.' });
+    res.status(200).json({ message: '검색 중지 요청 완료.' });
 });
 
-app.get('/api/user/collect', async (req, res) => {
-    try {
-        await identitycontroller.getNicknameFromSite(req, res);
-    } catch (error) {
-        console.log(error);
-    }
-});
-
-app.get('/api/post/filename', async (req, res) => {
-    try {
-        await filenamecontroller.getFilenameFromSite(req, res);
-    } catch (error) {
-        console.log(error);
-    }
-});
-
-app.post('/api/client-input', async (req, res) => { 
+app.post('/api/input', async (req, res) => { 
     const jobId = jobManager.addJob(req.body); 
     res.status(202).json({ jobId: jobId, status: 'pending' });
 });
 
-app.delete('/api/nickname-list', async (req, res) => {
-    await identitycontroller.chkUIDisValid(req, res);
+app.get('/api/user/id', async (req, res) => {
+    try {
+        await identityController.getNicknameFromSite(req, res);
+    } catch (error) {
+        console.log(error);
+    }
+});
+
+app.put('/api/user/id', async (req, res) => {
+    await identityController.chkUIDisValid(req, res);
     res.json({ status: 'success' });
 });
 
-app.delete('/api/post-list', async (req, res) => {
-    await identitycontroller.chkPostExists(req, res);
+app.put('/api/user/post-comment', async (req, res) => {
+    await identityController.chkPostExists(req, res);
     res.json({ status: 'success' });
+});
+
+app.get('/api/post/filename', async (req, res) => {
+    try {
+        await filenameController.getFilenameFromSite(req, res);
+    } catch (error) {
+        console.log(error);
+    }
 });
 
 app.get('/api/my-post-comment', async (req, res) => {

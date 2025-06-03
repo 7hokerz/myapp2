@@ -2,16 +2,10 @@ const axios = require('axios');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { userAgentPool, userAgentPoolMob, socksproxyList } = require('../config/apiHeader');
 
-testHeaders = {
-    'Accept': 'text/html',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-};
 testUrl = 'https://api.ipify.org';
 
 module.exports = class fetchUtil {
-    //fail = 0;
-    //success = 0;
+    
     constructor(isProxy) {
         this.isProxy = isProxy;
     }
@@ -49,11 +43,10 @@ module.exports = class fetchUtil {
                     if (data) requestConfig.data = data;
                 }
                 const response = await axiosInstance(requestConfig);
-                //this.success++;
                 return response;
             } catch (error) {
                 if(axios.isAxiosError(error)) {
-                    if(error.code !== 'ECONNABORTED' && error.code !== 'ENOTFOUND' && attempt > 1) {
+                    if(error.code !== 'ECONNABORTED' && error.code !== 'ENOTFOUND' && attempt > 2) {
                         console.error('Error code:', error.code);
                         console.error('Error message:', error.message);
                         console.error('Error url:', url);
@@ -74,7 +67,7 @@ module.exports = class fetchUtil {
                 } else {
                     console.error('Unexpected error', error);
                 }
-                //this.fail++;
+
                 await this._retryAfter(baseBackoff, attempt);
             }
         }

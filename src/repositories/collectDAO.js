@@ -1,6 +1,6 @@
 const pool = require('../config/mysql');
 
-module.exports = class collectDAO {
+class CollectDAO {
     async insertUid(identityCode, nickname, galleryCode) {
         const connection = await pool.getConnection();
 
@@ -169,7 +169,7 @@ module.exports = class collectDAO {
             SELECT DISTINCT identityCode
             FROM fixed_name_list
             WHERE is_valid = 0
-            ORDER BY 1 DESC`;
+            ORDER BY 1 ASC`;
 
         const [rows] = await connection.execute(query);
 
@@ -194,13 +194,19 @@ module.exports = class collectDAO {
     async getAllPosts(galleryCode) {
         const connection = await pool.getConnection();
 
-        const query = `
+        const queryPostTable = `
             SELECT postNum
             FROM post_list
             WHERE galleryCODE = ?
             ORDER BY postNum DESC`;
 
-        const [rows] = await connection.execute(query, [galleryCode]);
+        const queryCommentTable = `
+            SELECT postNum
+            FROM comment_list
+            WHERE galleryCODE = ?
+            ORDER BY postNum DESC`;
+
+        const [rows] = await connection.execute(queryCommentTable, [galleryCode]);
 
         connection.release();
 
@@ -300,6 +306,7 @@ module.exports = class collectDAO {
     }
 }
 
+module.exports = CollectDAO;
 
 /*
 게시글, 댓글 분리 로직 필요

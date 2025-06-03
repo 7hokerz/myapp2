@@ -1,11 +1,16 @@
+
 const SSEUtil = require('../utils/SSEUtil');
-const IdentityService = require('../services/identityService');
-const CheckService = require('../services/checkService');
 const jobManager = require('../utils/jobUtil');
 
-module.exports = class identityController {
-    constructor() {}
-    
+class IdentityController {
+    constructor(IdentityService, CheckService, collectDAO, FetchUtil) {
+        this.IdentityService = IdentityService;
+        this.CheckService = CheckService;
+        this.collectDAO = collectDAO;
+        this.FetchUtil = FetchUtil;
+        console.log('UserController: Instance created (Singleton)');
+    }
+
     async getNicknameFromSite(req, res) { 
         const { jobId } = req.query;
         const jobData = jobManager.getJob(jobId); 
@@ -13,7 +18,6 @@ module.exports = class identityController {
         const sseUtil = new SSEUtil(req, res);
         sseUtil.SSEInitHeader();
 
-        let identityService = null;
         try {
             const { 
                 galleryType, 
@@ -39,19 +43,8 @@ module.exports = class identityController {
                     break;
             }
 
-            identityService = new IdentityService({
-                SSEUtil: sseUtil, 
-                galleryType: galleryType, 
-                galleryId: galleryId, 
-                limit: limit, 
-                pos: pos, 
-                content: content, 
-                type: type, 
-                id: id, 
-                unitType: unitType,
-                actionType: actionType,
-                isProxy: isProxy,
-            });
+            const identityService = new this.IdentityService(this.collectDAO, new this.FetchUtil(isProxy));
+            identityService.init({sseUtil,galleryType,galleryId,type,id,pos,content,limit,unitType,actionType});
 
             jobManager.updateJobStatus(jobId, identityService, "executing");
 
@@ -73,7 +66,6 @@ module.exports = class identityController {
         const sseUtil = new SSEUtil(req, res);
         sseUtil.SSEInitHeader();
 
-        let checkService = null;
         try {
             const { 
                 galleryType, 
@@ -81,12 +73,8 @@ module.exports = class identityController {
                 isProxy,
             } = jobData.parameters;
 
-            checkService = new CheckService({
-                SSEUtil: this.SSEUtil, 
-                galleryType: galleryType,
-                galleryId: galleryId,
-                isProxy: isProxy,
-            });
+            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy));
+            checkService.init({sseUtil,galleryType,galleryId})
 
             jobManager.updateJobStatus(jobId, checkService, "executing");
 
@@ -108,7 +96,6 @@ module.exports = class identityController {
         const sseUtil = new SSEUtil(req, res);
         sseUtil.SSEInitHeader();
 
-        let checkService = null;
         try {
             const { 
                 galleryType, 
@@ -116,12 +103,8 @@ module.exports = class identityController {
                 isProxy,
             } = jobData.parameters;
 
-            checkService = new CheckService({
-                SSEUtil: this.SSEUtil, 
-                galleryType: galleryType,
-                galleryId: galleryId,
-                isProxy: isProxy,
-            });
+            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy));
+            checkService.init({sseUtil,galleryType,galleryId})
 
             jobManager.updateJobStatus(jobId, checkService, "executing");
 
@@ -145,3 +128,5 @@ module.exports = class identityController {
         }
     }
 }
+
+module.exports = IdentityController;

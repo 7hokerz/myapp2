@@ -1,13 +1,13 @@
 
 const SSEUtil = require('../utils/SSEUtil');
-const FilenameService = require('../services/filenameService');
 const jobManager = require('../utils/jobUtil');
 
-module.exports = class filenameController {
-    constructor() {
-        
+class FilenameController {
+    constructor(FilenameService, FetchUtil) {
+        this.FilenameService = FilenameService;
+        this.FetchUtil = FetchUtil;
     }
-
+    
     async getFilenameFromSite(req, res) {
         const { jobId } = req.query;
         const jobData = jobManager.getJob(jobId); 
@@ -15,7 +15,6 @@ module.exports = class filenameController {
         const sseUtil = new SSEUtil(req, res);
         sseUtil.SSEInitHeader();
 
-        let filenameService = null;
         try {
             const { 
                 galleryType, 
@@ -25,14 +24,8 @@ module.exports = class filenameController {
                 isProxy, 
             } = jobData.parameters;
 
-            filenameService = new FilenameService({
-                SSEUtil: sseUtil, 
-                galleryType: galleryType, 
-                galleryId: galleryId, 
-                limit: limit, 
-                startPage: startPage, 
-                isProxy: isProxy,
-            });
+            const filenameService = new this.FilenameService(new this.FetchUtil(isProxy));
+            filenameService.init({sseUtil, galleryType, galleryId, limit, startPage});
 
             jobManager.updateJobStatus(jobId, filenameService, "executing");
 
@@ -41,9 +34,8 @@ module.exports = class filenameController {
             sseUtil.SSESendEvent('complete', '');
 
             console.log('첨부파일 확인 작업 완료.');
-
         } catch (error) {
-            console.error('Error during nickname collection:', error);
+            console.error('Error during filename collection:', error);
         } finally {
             sseUtil.SSEendEvent();
             jobManager.deleteJob(jobId); // 작업 완료 후 job 삭제
@@ -60,6 +52,7 @@ module.exports = class filenameController {
     }
 }
 
+module.exports = FilenameController;
 /*
 
 */

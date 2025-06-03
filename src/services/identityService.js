@@ -1,21 +1,22 @@
 const cheerio = require('cheerio');
-const fetchUtil = require('../utils/fetchUtil');
-const collectDAO = require('../repositories/collectDAO');
 const { SELECTORS, STATUS_FLAGS, URL_PATTERNS } = require('../config/const');
 const { headers_des_chrome, headers_mob_chrome_comment_api, headers_mob_chrome_gallog } = require('../config/apiHeader');
 
-module.exports = class collectService {
+class CollectService {
     stopFlag = true;
-    collectDAO = new collectDAO();
     identityMap = new Map(); // UID
     newIdentityMap = new Map(); // UID
     postNoSet = new Set(); // 게시글 번호 
     commentNoSet = new Set(); // 댓글 (게시글 번호)
     hasCommentPostNoSet = new Set(); // 댓글을 가지고 있는 게시글 번호
     
-    constructor({ SSEUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, actionType, isProxy }) {
-        this.fetchUtil = new fetchUtil(isProxy);
-        this.SSEUtil = SSEUtil;
+    constructor(collectDAO, fetchUtil) {
+        this.collectDAO = collectDAO;
+        this.fetchUtil = fetchUtil;
+    }
+
+    init({ sseUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, actionType }) {
+        this.SSEUtil = sseUtil;
         this.galleryType = galleryType;
         this.galleryId = galleryId;
         this.restPage = Number(limit);
@@ -27,11 +28,6 @@ module.exports = class collectService {
         this.id = id;
         this.statBit = 0;
         this.curPage = 1;
-        this.newIdentityMap.clear();
-        this.hasCommentPostNoSet.clear();
-        this.identityMap.clear();
-        this.postNoSet.clear();
-        this.commentNoSet.clear();
     }
 
     requestStop() {
@@ -217,8 +213,11 @@ module.exports = class collectService {
                         'id': this.galleryId,
                         'no': no,
                         'cpage': 1,
+                        'managerskill': '',
+                        'csort': '',
+                        'permission_pw': '',
                     };
-                    const payload = `id=${this.galleryId}&no=${no}&cpage=1`;
+                    const payload = `id=${this.galleryId}&no=${no}&cpage=1&managerskill=&csort=&permission_pw=`;
                     const headers_mob = {...headers_mob_chrome_comment_api};
                     headers_mob['Content-Length'] = payload.length;
                     headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
@@ -431,6 +430,4 @@ module.exports = class collectService {
     }
 }
 
-/*
-    
-*/
+module.exports = CollectService;

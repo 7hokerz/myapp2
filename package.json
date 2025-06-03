@@ -23,6 +23,7 @@
     "oracledb": "^6.8.0",
     "puppeteer": "^24.4.0",
     "rss-parser": "^3.13.0",
-    "socks-proxy-agent": "^8.0.5"
+    "socks-proxy-agent": "^8.0.5",
+    "tsyringe": "^4.10.0"
   }
 }

@@ -52,9 +52,9 @@
             NICK_COUNT_SPAN: 'nick-count'
         };
         static API_PATHS = {
-            CLIENT_INPUT: '/api/client-input', 
-            USER_COLLECT: '/api/user/collect',
-            USER_STOP: '/api/user/stop', 
+            CLIENT_INPUT: '/api/input', 
+            USER_COLLECT: '/api/user/id',
+            USER_STOP: '/api/stop', 
         };
 
         constructor() {
@@ -128,7 +128,6 @@
         }
         
         _setInputStatus(isSearching) {
-            this.galleryTypeSelect.disabled = isSearching;
             this.modeSelect.disabled = isSearching;
             this.typeSelect.disabled = isSearching;
             this.unitTypeSelect.disabled = isSearching;
@@ -243,7 +242,7 @@
             if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
 
             try {
-                const response = await fetch(IndexPage.API_PATHS.CLIENT_INPUT, {
+                const response = await fetch(`${IndexPage.API_PATHS.CLIENT_INPUT}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(values)
@@ -317,6 +316,17 @@
                 }
             });
 
+            this.eventSource.addEventListener('db-fixed-nick', (event) => { // 이거
+                try {
+                    const data = JSON.parse(event.data);
+                    this.idsDiv.innerHTML = data;
+                    this.nickCount++;
+                    if(this.nickCountSpan) this.nickCountSpan.textContent = `고닉 개수: ${this.nickCount}`;
+                } catch (error) {
+                    console.error("Error parsing DB-fixed-nick event data:", error, event.data);
+                }
+            });
+
             this.eventSource.addEventListener('compare', (event) => {
                 try {
                     const results = JSON.parse(event.data);
@@ -380,7 +390,7 @@
 
             try {
                 const mode = this.modeSelect.value;
-                const response = await fetch(`${IndexPage.API_PATHS.USER_STOP}?mode=${mode}&jobId=${this.jobId}`);
+                const response = await fetch(`${IndexPage.API_PATHS.USER_STOP}/${this.modeSelect.value}?jobId=${this.jobId}`);
                 if (!response.ok) {
                     throw new Error(`서버 응답 오류 (${response.status})`);
                 }
@@ -420,8 +430,8 @@
                 
                 this.jobId = payload1.jobId;
 
-                const response = await fetch(`/api/post-list?jobId=${this.jobId}`, {
-                    method: 'DELETE',
+                const response = await fetch(`/api/user/post-comment?jobId=${this.jobId}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                 });
 
@@ -473,8 +483,8 @@
                 
                 this.jobId = payload1.jobId;
 
-                const response = await fetch(`/api/nickname-list?jobId=${this.jobId}`, {
-                    method: 'DELETE',
+                const response = await fetch(`/api/user/id?jobId=${this.jobId}`, {
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                 });
 
