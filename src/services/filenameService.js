@@ -37,7 +37,9 @@ const excludeList = [
 class FilenameService {
     stopFlag = true;
     postNoSet = new Set();
-    
+    num1 = 0;
+    num2 = 0;
+
     constructor(fetchUtil) {
         this.fetchUtil = fetchUtil;
     }
@@ -107,10 +109,10 @@ class FilenameService {
             따라서 아래 함수 자체는 동시에 실행되지만 랜덤 시간 이후에 요청이 발생하므로
             각 요청마다 요청 시작 시간이 다름.
         */
-        while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 20; 
+        while(!(this.stopFlag) && currentQueue.length > 0) {
+            let batchSize = 5; 
             const batch = currentQueue.splice(0, batchSize);
-
+            this.num1++;
             const results = await Promise.allSettled(
                 batch.map(async (no) => {
                     try {
@@ -128,8 +130,9 @@ class FilenameService {
             });
 
             if (currentQueue.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, Math.random() * 750 + 1000));
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
+            console.log("change. "+ this.num1, this.num2);
         }
     }
 
@@ -141,6 +144,11 @@ class FilenameService {
             const html = response.data;
             const $ = cheerio.load(html);
             const filename = $(SELECTORS.FILENAME_LINK).text().trim();
+            this.num2++;
+            if(response.headers['content-length'] === '0') {
+                console.log(this.num1, this.num2);
+                this.stopFlag = true;
+            }
 
             if(filename) {
                 if (galleryList.some((e) => filename.includes(e))) {

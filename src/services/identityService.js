@@ -113,7 +113,8 @@ class CollectService {
     }
 
     async _getTotalPostCount() { // mob (수정 필요)
-        const response = await this.fetchUtil.axiosFetcher(URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', {...headers_mob_chrome_comment_api}, 1);
+        const response = await this.fetchUtil.axiosFetcher(
+            URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', {...headers_mob_chrome_comment_api}, 1);
         const html = response.data;
         const $ = cheerio.load(html);
 
