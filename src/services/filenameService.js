@@ -108,7 +108,7 @@ class FilenameService {
             각 요청마다 요청 시작 시간이 다름.
         */
         while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 5) + 20; 
+            let batchSize = 30; 
             const batch = currentQueue.splice(0, batchSize);
 
             const results = await Promise.allSettled(

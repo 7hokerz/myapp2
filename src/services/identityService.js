@@ -195,7 +195,7 @@ class CollectService {
                 if(hasComment) this.hasCommentPostNoSet.add(no);
             }
         });
-        await new Promise(resolve => setTimeout(resolve, Math.random() * 250 + 250));
+        await new Promise(resolve => setTimeout(resolve, 250));
     }
 
     async _getNicknameFromCommentsInPost() { // mob
@@ -203,7 +203,7 @@ class CollectService {
         let currentQueue = [...postNoQueue];
 
         while(currentQueue.length > 0) {
-            let batchSize = Math.floor(Math.random() * 10) + 45; 
+            let batchSize = 50; 
             const batch = currentQueue.splice(0, batchSize);
 
             const results = await Promise.allSettled(

@@ -1,16 +1,15 @@
-const fetchUtil = require('../utils/fetchUtil');
 const { URL_PATTERNS } = require('../config/const');
 const { headers_des_chrome, headers_mob_chrome_gallog } = require('../config/apiHeader');
 
 class CheckService {
     stopFlag = true;
 
-    constructor(collectDAO) {
+    constructor(collectDAO, fetchUtil) {
         this.collectDAO = collectDAO;
+        this.fetchUtil = fetchUtil;
     }
 
-    init({ SSEUtil, galleryType, galleryId, isProxy }) {
-        this.fetchUtil = new fetchUtil(isProxy);
+    init({ SSEUtil, galleryType, galleryId }) {
         this.SSEUtil = SSEUtil;
         this.galleryType = galleryType;
         this.galleryId = galleryId;
@@ -75,7 +74,7 @@ class CheckService {
         let inc = 1, limit = 0;
 
         while(posts.length > 0) {
-            let batchSize = 5, remaining = Infinity;
+            let batchSize = 4, remaining = Infinity;
             const batch = posts.splice(0, batchSize);
 
             let startTime = performance.now();
@@ -114,7 +113,7 @@ class CheckService {
                 if(status === "fulfilled"){
                     const { no, response } = value;
                     
-                    if(response.status === 403) {
+                    if(response.status && response.status === 403) {
                         this.collectDAO.deletePostInDB(no, this.galleryId);
                         console.log(`${no}, ${this.galleryId} 삭제 완료`);
                     }
@@ -124,7 +123,7 @@ class CheckService {
             });
             if(this.stopFlag) break;
 
-            if(incs.length % 20 === 0) console.log(weight, incs.length, remaining);
+            console.log(weight, incs.length, remaining);
             
             await new Promise(resolve => setTimeout(resolve, 990 + weight)); 
 

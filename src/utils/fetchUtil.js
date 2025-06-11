@@ -1,48 +1,49 @@
 const axios = require('axios');
 const { SocksProxyAgent } = require('socks-proxy-agent');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 const { userAgentPool, userAgentPoolMob, socksproxyList } = require('../config/apiHeader');
 
 testUrl = 'https://api.ipify.org';
 
 module.exports = class fetchUtil {
-    
     constructor(isProxy) {
         this.isProxy = isProxy;
+        this.api = axios.create({
+            keepAlive: true,
+            timeout,
+            validateStatus: function (status) {
+                return ((status >= 200 && status < 300) || status === 403 || status === 404);
+            }
+        });
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 100) {
-        let socksProxyAgent = null;
-         
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 100) { 
         for (let attempt = 0; attempt < 5; attempt++) {
-            headers['User-Agent'] = this._getRandomUA(isMoblie);
-            if(this.isProxy) {
-                socksProxyAgent = this._getRandomSocksProxy();
-                headers['X-Forwarded-For'] = socksProxyAgent.proxy.host;
-                headers['Forwarded'] = `for=${socksProxyAgent.proxy.host}`;
+            const attemptConfig = {
+                url,
+                method,
+                headers: {
+                    ...headers,
+                    'User-Agent': this._getRandomUA(isMoblie)
+                },
+                timeout,
             }
 
-            const axiosInstance = axios.create({
-                httpAgent: socksProxyAgent,
-                headers: headers,
-                keepAlive: true,
-                timeout,
-                validateStatus: function (status) {
-                    return ((status >= 200 && status < 300) || status === 403 || status === 404);
-                }
-            });
+            if(this.isProxy) {
+                const socksProxyAgent = this._getRandomSocksProxy();
+                attemptConfig.httpAgent = socksProxyAgent;
+                attemptConfig.httpsAgent = socksProxyAgent;
+                attemptConfig.headers['X-Forwarded-For'] = socksProxyAgent.proxy.host;
+                attemptConfig.headers['Forwarded'] = `for=${socksProxyAgent.proxy.host}`;
+            }
 
             try {
-                const requestConfig = {
-                    method,
-                    url
-                };
-                
                 if (method.toUpperCase() === 'GET') {
-                    if (data) requestConfig.params = data;
+                    if (data) attemptConfig.params = data;
                 } else {
-                    if (data) requestConfig.data = data;
+                    if (data) attemptConfig.data = data;
                 }
-                const response = await axiosInstance(requestConfig);
+                const response = await this.api(attemptConfig);
                 return response;
             } catch (error) {
                 if(axios.isAxiosError(error)) {
@@ -86,7 +87,11 @@ module.exports = class fetchUtil {
     _getRandomSocksProxy() {
         const socksProxy = socksproxyList[Math.floor(Math.random() * socksproxyList.length)];
         const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
-        const socksProxyAgent = new SocksProxyAgent(SocksProxyUrl); // 특정 요소 설정으로 socket hang up 문제를 해결할 방안일지??
+        const socksProxyAgent = new SocksProxyAgent(
+            SocksProxyUrl, {
+                //rejectUnauthorized: false
+            }
+        ); // 특정 요소 설정으로 socket hang up 문제를 해결할 방안일지??
         
         return socksProxyAgent;
     }
