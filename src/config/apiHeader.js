@@ -45,9 +45,6 @@ const userAgentPoolMob = [
 ];
 
 const socksproxyList = [
-    // valid
-    // blocked { ip: '185.93.89.152', port:7739 },
-
     // CERT_HAS_EXPIRED
     // USA
     /*
@@ -75,16 +72,32 @@ const socksproxyList = [
     { ip: '206.220.175.2', port:4145 },
     { ip: '216.68.128.121', port:4145 },
     */
-    // no cert
+
+    // valid but need specific function to check cert
     // KR
     //{ ip: '121.169.46.116', port:1090 },
     // CN
     //{ ip: '103.36.165.6', port:1080 },
     //{ ip: '112.5.33.179', port:999 },
-    //{ ip: '221.202.27.194', port:10806 },
 
-    //{ ip: '221.202.27.194', port:10806 },
-    
+    //{ ip: '', port: },
+];
+
+const httpsproxyList = [
+    // CERT_HAS_EXPIRED, ...etc
+    /*
+    // ROM
+    { ip: '84.239.14.156', port:9002 },
+    // Japan
+    { ip: '203.189.96.232', port:443 },
+    // USA
+    { ip: '138.199.35.215', port:9002 },
+    { ip: '209.97.153.210', port:8888 },
+    { ip: '156.146.59.14', port:9002 },
+    { ip: '205.178.137.216', port:8447 },
+    { ip: '181.215.52.16', port:9443 },
+    */
+    //{ ip: '', port: },
 ];
 
 const headers_des_chrome = { // post_list, gallog
@@ -239,4 +252,5 @@ module.exports = {
     userAgentPool,
     userAgentPoolMob,
     socksproxyList,
+    httpsproxyList,
 };

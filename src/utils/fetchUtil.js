@@ -1,23 +1,26 @@
 const axios = require('axios');
+const { Agent } = require('https');
 const { SocksProxyAgent } = require('socks-proxy-agent');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { userAgentPool, userAgentPoolMob, socksproxyList } = require('../config/apiHeader');
+const { userAgentPool, userAgentPoolMob, socksproxyList, httpsproxyList } = require('../config/apiHeader');
 
 testUrl = 'https://api.ipify.org';
+
+let tlsCert = null; // 인증서 확인용
 
 module.exports = class fetchUtil {
     constructor(isProxy) {
         this.isProxy = isProxy;
         this.api = axios.create({
+            //httpsAgent: new Agent().on('keylog', (line, tlsSocket) => tlsCert = tlsSocket.getPeerCertificate(false)),
             keepAlive: true,
-            timeout,
             validateStatus: function (status) {
                 return ((status >= 200 && status < 300) || status === 403 || status === 404);
-            }
+            },
         });
     }
 
-    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 10000, baseBackoff = 100) { 
+    async axiosFetcher(url, method = 'GET', headers = {}, isMoblie = 0, data = null, timeout = 20000, baseBackoff = 100) { 
         for (let attempt = 0; attempt < 5; attempt++) {
             const attemptConfig = {
                 url,
@@ -30,11 +33,11 @@ module.exports = class fetchUtil {
             }
 
             if(this.isProxy) {
-                const socksProxyAgent = this._getRandomSocksProxy();
-                attemptConfig.httpAgent = socksProxyAgent;
-                attemptConfig.httpsAgent = socksProxyAgent;
-                attemptConfig.headers['X-Forwarded-For'] = socksProxyAgent.proxy.host;
-                attemptConfig.headers['Forwarded'] = `for=${socksProxyAgent.proxy.host}`;
+                const proxyAgent = this._getRandomSocksProxy();
+                attemptConfig.httpAgent = proxyAgent;
+                attemptConfig.httpsAgent = proxyAgent;
+                attemptConfig.headers['X-Forwarded-For'] = proxyAgent.proxy.host;
+                attemptConfig.headers['Forwarded'] = `for=${proxyAgent.proxy.host}`;
             }
 
             try {
@@ -47,7 +50,7 @@ module.exports = class fetchUtil {
                 return response;
             } catch (error) {
                 if(axios.isAxiosError(error)) {
-                    if(error.code !== 'ECONNABORTED' && error.code !== 'ENOTFOUND' && attempt > 2) {
+                    if(attempt > -1) {
                         console.error('Error code:', error.code);
                         console.error('Error message:', error.message);
                         console.error('Error url:', url);
@@ -61,7 +64,6 @@ module.exports = class fetchUtil {
                         } else {
                             console.error('Error setting up request.');
                         }
-
                         console.error('Request Config:', error.config.data);
                         console.log('attempt: ', attempt, '\n');
                     }
@@ -85,15 +87,25 @@ module.exports = class fetchUtil {
     }
 
     _getRandomSocksProxy() {
-        const socksProxy = socksproxyList[Math.floor(Math.random() * socksproxyList.length)];
-        const SocksProxyUrl = `socks://${socksProxy.ip}:${socksProxy.port}`;
+        const SocksProxy = socksproxyList[Math.floor(Math.random() * socksproxyList.length)];
+        const SocksProxyUrl = `socks://${SocksProxy.ip}:${SocksProxy.port}`;
         const socksProxyAgent = new SocksProxyAgent(
             SocksProxyUrl, {
-                //rejectUnauthorized: false
+                //rejectUnauthorized: false,
             }
-        ); // 특정 요소 설정으로 socket hang up 문제를 해결할 방안일지??
-        
+        )//.on('keylog', (line, tlsSocket) => tlsCert = tlsSocket.getPeerCertificate(false));
         return socksProxyAgent;
+    }
+
+    _getRandomHttpsProxy() {
+        const HttpsProxy = httpsproxyList[Math.floor(Math.random() * httpsproxyList.length)];
+        const HttpsProxyUrl = `https://${HttpsProxy.ip}:${HttpsProxy.port}`;
+        const httpsProxyAgent = new HttpsProxyAgent(
+            HttpsProxyUrl, {
+                //rejectUnauthorized: false,
+            }
+        )//.on('keylog', (line, tlsSocket) => tlsCert = tlsSocket.getPeerCertificate(false));
+        return httpsProxyAgent;
     }
 
     _getRandomUA(isMobile) {

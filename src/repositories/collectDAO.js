@@ -206,7 +206,7 @@ class CollectDAO {
             WHERE galleryCODE = ?
             ORDER BY postNum DESC`;
 
-        const [rows] = await connection.execute(queryCommentTable, [galleryCode]);
+        const [rows] = await connection.execute(queryPostTable, [galleryCode]);
 
         connection.release();
 
