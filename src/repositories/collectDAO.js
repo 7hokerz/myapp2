@@ -71,7 +71,7 @@ class CollectDAO {
     }
 
     async insertCommentNo(item, galleryCode) {
-        const { uid: identityCode, no: postNum, commentNum } = item;
+        const { uid: identityCode, postNo: postNum, commentNo: commentNum } = item;
         const checkQuery = `
             SELECT postNum FROM comment_list c
             JOIN fixed_name_list f

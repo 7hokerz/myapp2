@@ -5,17 +5,18 @@ configExpress(app);
 
 const jobManager = require('./utils/jobUtil');
 const FetchUtil = require('./utils/fetchUtil');
+const DataParser = require('../parsers/dataParser');
 
 const CollectDAO = require('./repositories/collectDAO');
 
-const IdentityService = require('./services/identityService');
+const IdentityService = require('./services/identityServiceTest');
 const CheckService = require('./services/checkService');
 const FilenameService = require('./services/filenameService');
 
 const IdentityController = require('./controller/identityController');
 const FilenameController = require('./controller/filenameController');
 
-const identityController = new IdentityController(IdentityService, CheckService, new CollectDAO(), FetchUtil);
+const identityController = new IdentityController(IdentityService, CheckService, new CollectDAO(), FetchUtil, new DataParser());
 const filenameController = new FilenameController(FilenameService, FetchUtil);
 
 

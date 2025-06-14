@@ -3,11 +3,12 @@ const SSEUtil = require('../utils/SSEUtil');
 const jobManager = require('../utils/jobUtil');
 
 class IdentityController {
-    constructor(IdentityService, CheckService, collectDAO, FetchUtil) {
+    constructor(IdentityService, CheckService, collectDAO, FetchUtil, dataParser) {
         this.IdentityService = IdentityService;
         this.CheckService = CheckService;
         this.collectDAO = collectDAO;
         this.FetchUtil = FetchUtil;
+        this.dataParser = dataParser;
         console.log('UserController: Instance created (Singleton)');
     }
 
@@ -73,7 +74,7 @@ class IdentityController {
                 isProxy,
             } = jobData.parameters;
 
-            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy));
+            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy), this.dataParser);
             checkService.init({sseUtil,galleryType,galleryId})
 
             jobManager.updateJobStatus(jobId, checkService, "executing");
