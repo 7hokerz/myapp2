@@ -5,18 +5,20 @@ configExpress(app);
 
 const jobManager = require('./utils/jobUtil');
 const FetchUtil = require('./utils/fetchUtil');
-const DataParser = require('../parsers/dataParser');
+const DataParser = require('./parsers/dataParser');
+const SiteApiClient = require('./apiRequester/SiteApiClient');
 
 const CollectDAO = require('./repositories/collectDAO');
 
 const IdentityService = require('./services/identityServiceTest');
-const CheckService = require('./services/checkService');
+const CheckService = require('./services/checkServiceTest');
 const FilenameService = require('./services/filenameService');
 
 const IdentityController = require('./controller/identityController');
 const FilenameController = require('./controller/filenameController');
 
-const identityController = new IdentityController(IdentityService, CheckService, new CollectDAO(), FetchUtil, new DataParser());
+const identityController = new IdentityController(
+    IdentityService, CheckService, new CollectDAO(), FetchUtil, new DataParser(), SiteApiClient);
 const filenameController = new FilenameController(FilenameService, FetchUtil);
 
 

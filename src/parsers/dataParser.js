@@ -84,6 +84,11 @@ class DataParser {
         }
         return csrfToken;
     }
+
+    parseTotalPostCount(html) {
+        const $ = cheerio.load(html);
+        return $(SELECTORS.POST_COUNT).text().replace(/[^0-9]/g, "");
+    }
 }
 
 module.exports = DataParser;

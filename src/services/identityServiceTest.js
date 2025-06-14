@@ -1,6 +1,5 @@
 const cheerio = require('cheerio');
-const { SELECTORS, STATUS_FLAGS, URL_PATTERNS } = require('../config/const');
-const { headers_des_chrome, headers_mob_chrome_comment_api, headers_mob_chrome_gallog } = require('../config/apiHeader');
+const { SELECTORS, STATUS_FLAGS } = require('../config/const');
 
 class CollectService {
     stopFlag = true;
@@ -10,10 +9,10 @@ class CollectService {
     commentNoSet = new Set(); // 댓글 (게시글 번호)
     hasCommentPostNoSet = new Set(); // 댓글을 가지고 있는 게시글 번호
     
-    constructor(collectDAO, fetchUtil, dataParser) {
+    constructor(collectDAO, siteApiClient, dataParser) {
         this.collectDAO = collectDAO;
-        this.fetchUtil = fetchUtil;
         this.dataParser = dataParser;
+        this.siteApiClient = siteApiClient;
     }
 
     init({ sseUtil, galleryType, galleryId, limit, pos, content, type, id, unitType, actionType }) {
@@ -114,25 +113,23 @@ class CollectService {
     }
 
     async _getTotalPostCount() { // mob (수정 필요)
-        const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', {...headers_mob_chrome_comment_api}, 1);
-        const html = response.data;
-        const $ = cheerio.load(html);
-
-        const tot = $(SELECTORS.POST_COUNT).text().replace(/[^0-9]/g, "");
-
-        return tot;
+        const data = await this.siteApiClient.getTotalPostFromSite(this.galleryId);
+        return this.dataParser.parseTotalPostCount(data);
     }
     
     async _getNicknameFromPostLists() { // des
-        const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_SEARCH_DES(this.galleryType, this.galleryId, this.curPage, this.position, this.type, this.content), 'GET', {...headers_des_chrome});
+        const searchOptions = {
+            page: this.curPage,
+            position: this.position,
+            type: this.type,
+            content: this.content,
+        };
+        const { data, request } = await this.siteApiClient.getUsersFromPostListFiltered(this.galleryType, this.galleryId, searchOptions);
         
-        const resurl = new URL(response.request.res.responseUrl);
+        const resurl = new URL(request.res.responseUrl);
         const urlPage = Number(resurl.searchParams.get('page'));
         
-        const html = response.data;
-        const $ = cheerio.load(html);
+        const $ = cheerio.load(data);
 
         const hasPosts = urlPage > 0 && $(SELECTORS.POST_ITEM).length; // 페이지에 게시글이 존재하는가?
         
@@ -143,7 +140,7 @@ class CollectService {
             this.statBit |= STATUS_FLAGS.INVALID_POSITION;
             this.statBit |= STATUS_FLAGS.INVALID_PAGE;
         } else {
-            const { users, posts } = this.dataParser.parseUsersFromPostList(html);
+            const { users, posts } = this.dataParser.parseUsersFromPostList(data);
 
             users.forEach((value, key) => {
                 this.identityMap.set(key, value);
@@ -161,12 +158,9 @@ class CollectService {
     }
 
     async _getNicknameFromPostListsAll() { // des
-        const response = await this.fetchUtil.axiosFetcher(
-            URL_PATTERNS.POST_LIST_DES(this.galleryType, this.galleryId, this.curPage), 'GET', {...headers_des_chrome});
+        const data = await this.siteApiClient.getUsersFromPostList(this.galleryType, this.galleryId, { page: this.curPage })
 
-        const html = response.data;
-
-        const { users, posts } = this.dataParser.parseUsersFromPostList(html);
+        const { users, posts } = this.dataParser.parseUsersFromPostList(data);
 
         users.forEach((value, key) => {
             this.identityMap.set(key, value);
@@ -191,23 +185,9 @@ class CollectService {
 
             const results = await Promise.allSettled(
                 batch.map(async ({no}) => {
-                    const url = URL_PATTERNS.COMMENT_API();
-                    const data = {
-                        'id': this.galleryId,
-                        'no': no,
-                        'cpage': 1,
-                        'managerskill': '',
-                        'csort': '',
-                        'permission_pw': '',
-                    };
-                    const payload = `id=${this.galleryId}&no=${no}&cpage=1&managerskill=&csort=&permission_pw=`;
-                    const headers_mob = {...headers_mob_chrome_comment_api};
-                    headers_mob['Content-Length'] = payload.length;
-                    headers_mob['Referer'] = URL_PATTERNS.POST_MOB(this.galleryId, no);
-                    headers_mob['X-CSRF-TOKEN'] = this.csrfToken;
                     try {
-                        const response = await this.fetchUtil.axiosFetcher(url, 'POST', headers_mob, 1, data, 5000);
-                        return { no, response: response };
+                        const data = await this.siteApiClient.getUsersFromComments(this.galleryId, {no, csrfToken: this.csrfToken});
+                        return { no, data };
                     } catch (error) {
                         return { no, reason: error };
                     }
@@ -228,9 +208,8 @@ class CollectService {
         const { status, value, reason } = result;
 
         if(status === "fulfilled") {
-            const { no, response } = value;
-            const html = response.data;
-            const { users, comments } = this.dataParser.parseUsersFromComments(html, no);
+            const { no, data } = value;
+            const { users, comments } = this.dataParser.parseUsersFromComments(data, no);
 
             users.forEach((value, key) => {
                 this.identityMap.set(key, value);
@@ -399,11 +378,8 @@ class CollectService {
 
     async _getCsrfToken() {
         if(!this.csrfToken) {
-            const response = await this.fetchUtil.axiosFetcher(
-                URL_PATTERNS.GALLERY_MOB(this.galleryId), 'GET', {...headers_mob_chrome_gallog}, 1);
-
-            const html = response.data;
-            this.csrfToken = this.dataParser.parseCsrfTokenFromPage(html);
+            const data = await this.siteApiClient.getCsrfTokenFromPage(this.galleryId);
+            this.csrfToken = this.dataParser.parseCsrfTokenFromPage(data);
         }
     }
 }

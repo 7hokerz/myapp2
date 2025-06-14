@@ -3,12 +3,14 @@ const SSEUtil = require('../utils/SSEUtil');
 const jobManager = require('../utils/jobUtil');
 
 class IdentityController {
-    constructor(IdentityService, CheckService, collectDAO, FetchUtil, dataParser) {
+    
+    constructor(IdentityService, CheckService, collectDAO, FetchUtil, dataParser, SiteApiClient) {
         this.IdentityService = IdentityService;
         this.CheckService = CheckService;
         this.collectDAO = collectDAO;
         this.FetchUtil = FetchUtil;
         this.dataParser = dataParser;
+        this.SiteApiClient = SiteApiClient;
         console.log('UserController: Instance created (Singleton)');
     }
 
@@ -43,8 +45,11 @@ class IdentityController {
                     content = keyword;
                     break;
             }
+            const fetchUtil = new this.FetchUtil(isProxy);
+            const siteApiClient = new this.SiteApiClient(fetchUtil);
 
-            const identityService = new this.IdentityService(this.collectDAO, new this.FetchUtil(isProxy));
+            const identityService = new this.IdentityService(
+                this.collectDAO, siteApiClient, this.dataParser);
             identityService.init({sseUtil,galleryType,galleryId,type,id,pos,content,limit,unitType,actionType});
 
             jobManager.updateJobStatus(jobId, identityService, "executing");
@@ -74,7 +79,10 @@ class IdentityController {
                 isProxy,
             } = jobData.parameters;
 
-            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy), this.dataParser);
+            const fetchUtil = new this.FetchUtil(isProxy);
+            const siteApiClient = new this.SiteApiClient(fetchUtil);
+
+            const checkService = new this.CheckService(this.collectDAO, siteApiClient);
             checkService.init({sseUtil,galleryType,galleryId})
 
             jobManager.updateJobStatus(jobId, checkService, "executing");
@@ -104,7 +112,10 @@ class IdentityController {
                 isProxy,
             } = jobData.parameters;
 
-            const checkService = new this.CheckService(this.collectDAO, new this.FetchUtil(isProxy));
+            const fetchUtil = new this.FetchUtil(isProxy);
+            const siteApiClient = new this.SiteApiClient(fetchUtil);
+
+            const checkService = new this.CheckService(this.collectDAO, siteApiClient);
             checkService.init({sseUtil,galleryType,galleryId})
 
             jobManager.updateJobStatus(jobId, checkService, "executing");
