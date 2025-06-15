@@ -6,7 +6,7 @@ class SiteApiClient {
     constructor(fetchUtil) {
         this.fetchUtil = fetchUtil;
     }
-
+    
     async getUsersFromComments(galleryId, options) {
         const { no, csrfToken } = options;
 

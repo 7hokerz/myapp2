@@ -1,5 +1,5 @@
-const cheerio = require('cheerio');
-const { SELECTORS, STATUS_FLAGS } = require('../config/const');
+const { STATUS_FLAGS } = require('../config/const');
+const PersistenceManager = require('../repositories/persistenceManager');
 
 class CollectService {
     stopFlag = true;
@@ -8,6 +8,8 @@ class CollectService {
     postNoSet = new Set(); // 게시글 번호 
     commentNoSet = new Set(); // 댓글 (게시글 번호)
     hasCommentPostNoSet = new Set(); // 댓글을 가지고 있는 게시글 번호
+
+    persistenceManager = new PersistenceManager();
     
     constructor(collectDAO, siteApiClient, dataParser) {
         this.collectDAO = collectDAO;
@@ -128,10 +130,8 @@ class CollectService {
         
         const resurl = new URL(request.res.responseUrl);
         const urlPage = Number(resurl.searchParams.get('page'));
-        
-        const $ = cheerio.load(data);
 
-        const hasPosts = urlPage > 0 && $(SELECTORS.POST_ITEM).length; // 페이지에 게시글이 존재하는가?
+        const hasPosts = urlPage > 0 && this.dataParser.parsePagePostCount(data); // 페이지에 게시글이 존재하는가?
         
         const isValidPage = hasPosts && this.curPage === urlPage; // 이전에 조회한 적 없거나 유효한 페이지인가?
         
@@ -143,8 +143,10 @@ class CollectService {
             const { users, posts } = this.dataParser.parseUsersFromPostList(data);
 
             users.forEach((value, key) => {
-                this.identityMap.set(key, value);
-                this.newIdentityMap.set(key, value);
+                if(!(this.identityMap.has(key))){
+                    this.identityMap.set(key, value);
+                    this.newIdentityMap.set(key, value);
+                }
             });
 
             posts.forEach(post => {
@@ -163,8 +165,10 @@ class CollectService {
         const { users, posts } = this.dataParser.parseUsersFromPostList(data);
 
         users.forEach((value, key) => {
-            this.identityMap.set(key, value);
-            this.newIdentityMap.set(key, value);
+            if(!(this.identityMap.has(key))){
+                this.identityMap.set(key, value);
+                this.newIdentityMap.set(key, value);
+            }
         });
 
         posts.forEach(post => {
@@ -212,8 +216,10 @@ class CollectService {
             const { users, comments } = this.dataParser.parseUsersFromComments(data, no);
 
             users.forEach((value, key) => {
-                this.identityMap.set(key, value);
-                this.newIdentityMap.set(key, value);
+                if(!(this.identityMap.has(key))){
+                    this.identityMap.set(key, value);
+                    this.newIdentityMap.set(key, value);
+                }
             });
 
             comments.forEach(comment => {
@@ -226,97 +232,15 @@ class CollectService {
     }
 
     async _insertUIDs() {
-        try {
-            let startTime = 0, endTime = 0, time = 0;
-            //await this._checkUIDisValid(); // UID가 탈퇴했는지 확인
+        try {//await this._checkUIDisValid(); // UID가 탈퇴했는지 확인
+            const allPostItems = Array.from(this.postNoSet);
+            const allCommentItems = Array.from(this.commentNoSet);
 
-            for(let [uid, nick] of this.identityMap) { // id 추가
-                await this.collectDAO.insertUid(uid, nick, this.galleryId);
-            }
-            const allPostItems = Array.from(this.postNoSet); // 병렬
-            const allCommentItems = Array.from(this.commentNoSet); // 병렬
+            await this.persistenceManager.processAndInsertData(
+                this.identityMap, allPostItems, allCommentItems, this.galleryId);
 
-            const groupedByUidPost = allPostItems.reduce((acc, item) => {
-                const { uid } = item;
-                if (!acc[uid]) {
-                    acc[uid] = []; // 해당 UID 키가 없으면 빈 배열로 초기화
-                }
-                acc[uid].push(item); // 현재 아이템을 해당 UID 배열에 추가
-                return acc;
-            }, {});
-
-            const groupedByUidComment = allCommentItems.reduce((acc, item) => {
-                const { uid, postNo } = item;
-                if (!acc[uid]) {
-                    acc[uid] = []; // 해당 UID 키가 없으면 빈 배열로 초기화
-                }
-                const alreadyExists = acc[uid].some(existingItem => existingItem.postNo === postNo);
-
-                if (!alreadyExists) {
-                    acc[uid].push(item);
-                }
-                return acc;
-            }, {});
-
-            const itemsToProcessPost = Object.values(groupedByUidPost).flatMap(group => {
-                // 'no' 값을 기준으로 내림차순 정렬 (큰 값이 먼저 오도록)
-                group.sort((itemA, itemB) => itemB.no - itemA.no);
-                // 정렬된 그룹에서 상위 2개 아이템만 선택 (slice는 원본 배열을 변경하지 않음)
-                return group.slice(0, 2);
-            });
-
-            const itemsToProcessComment = Object.values(groupedByUidComment).flatMap(group => {
-                // 'no' 값을 기준으로 내림차순 정렬 (큰 값이 먼저 오도록)
-                group.sort((itemA, itemB) => itemB.postNo - itemA.postNo);
-                // 정렬된 그룹에서 상위 2개 아이템만 선택 (slice는 원본 배열을 변경하지 않음)
-                return group.slice(0, 2);
-            });
-
-            const postNoQueue = [...itemsToProcessPost];
-            const commentNoQueue = [...itemsToProcessComment];
-            startTime = Date.now();
-            while(postNoQueue.length > 0) {
-                let batchSize = 20;
-                const batch = postNoQueue.splice(0, batchSize);
-
-                await Promise.allSettled(
-                    batch.map(async (item) => {
-                        const { uid, no } = item;
-                        try {
-                            await this.collectDAO.insertPostNo(item, this.galleryId);
-                            return { uid, no };
-                        } catch (error) {
-                            return console.log(error);
-                        }
-                    })
-                );
-            }
-            endTime = Date.now();
-            time = endTime - startTime;
-            console.log(`Concurrent operations finished in ${time} ms.`);
-
-            startTime = Date.now();
-            while(commentNoQueue.length > 0) {
-                let batchSize = 20;
-                const batch = commentNoQueue.splice(0, batchSize);
-
-                await Promise.allSettled(
-                    batch.map(async (item) => {
-                        const { uid, postNo, commentNo } = item;
-                        try {
-                            await this.collectDAO.insertCommentNo(item, this.galleryId);
-                            return { uid, postNo, commentNo };
-                        } catch (error) {
-                            return console.log(error);
-                        }
-                    })
-                );
-            }
-            endTime = Date.now();
-            time = endTime - startTime;
-            console.log(`Concurrent operations finished in ${time} ms.`);
         } catch (error) {
-            console.error(error);
+            console.error("Error during data insertion: " + error);
         } finally {
             this.identityMap.clear();
             this.postNoSet.clear();
@@ -325,50 +249,14 @@ class CollectService {
     }
 
     async _compareUIDs() {
-        let combinedResults = [];
         try{
-            const uidsArray = Array.from(this.identityMap.keys());
-            const results = await this.collectDAO.compareUIDs(uidsArray);
-            
-            const DataMap = new Map();
-            for (const item of this.postNoSet) {
-                if (item && item.uid !== undefined) {
-                    DataMap.set(item.uid, item.no);
-                } else {
-                    console.warn("Invalid item found in postNoSet:", item);
-                }
-            }
-            for (const item of this.commentNoSet) {
-                if (item && item.uid !== undefined) {
-                    DataMap.set(item.uid, item.postNo);
-                } else {
-                    console.warn("Invalid item found in commentNoSet:", item);
-                }
-            }
-
-            for (const resultItem of results) {
-                const { identityCode: uid, galleryCODE: GID, postNum } = resultItem;
-                
-                if (DataMap.has(uid)) {
-                    const no = DataMap.get(uid);
-    
-                    const combinedItem = {
-                        uid: uid,
-                        GID: GID, 
-                        postNum: postNum,
-                        no: no,
-                    };
-                    combinedResults.push(combinedItem);
-                }
-            }
-            combinedResults.sort((a, b) => {
-                if(a.uid > b.uid) return 1;
-                else return -1;
-            });
-
+            const users = Array.from(this.identityMap.keys());
+            const combinedResults = await this.persistenceManager.processAndCompareData(
+                users, this.postNoSet, this.commentNoSet
+            )
             return combinedResults;
         } catch (error) {
-            console.log(error);
+            console.error("Error during data comparison:" + error);
         } finally {
             this.identityMap.clear();
             this.postNoSet.clear();

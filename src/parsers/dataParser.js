@@ -89,6 +89,11 @@ class DataParser {
         const $ = cheerio.load(html);
         return $(SELECTORS.POST_COUNT).text().replace(/[^0-9]/g, "");
     }
+
+    parsePagePostCount(html) {
+        const $ = cheerio.load(data);
+        return $(SELECTORS.POST_ITEM).length;
+    }
 }
 
 module.exports = DataParser;
